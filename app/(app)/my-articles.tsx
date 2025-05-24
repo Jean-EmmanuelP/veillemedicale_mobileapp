@@ -1,235 +1,241 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, FlatList, Linking } from 'react-native';
-import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { fetchArticles } from '../../store/articlesSlice';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  SafeAreaView,
+  ViewStyle,
+  TextStyle,
+  RefreshControl,
+  Linking,
+  Platform,
+} from 'react-native';
+import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { 
+  fetchArticles, 
+  fetchUserSubscriptionStructure,
+  setSelectedDiscipline,
+  setSelectedSubDiscipline,
+  toggleLike,
+  toggleRead,
+  toggleThumbsUp,
+  clearMyArticles,
+  resetFiltersToAll,
+  type DisciplineStructure,
+} from '../../store/articlesSlice';
+import FilterHeader from '../../components/FilterHeader';
+import ArticleItem from '../../components/ArticleItem';
+import ArticleModal from '../../components/ArticleModal';
 import { Article } from '../../types';
-import { Ionicons } from '@expo/vector-icons';
+import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
+import { COLORS } from '../../assets/constants/colors';
+
+// Define a union type for items in FlashList: string for headers, Article for items
+type MyListItem = string | Article;
 
 export default function MyArticlesScreen() {
   const dispatch = useAppDispatch();
-  const { items, loading, error, hasMore } = useAppSelector((state) => state.articles);
+  const { 
+    myArticles,
+    loadingMyArticles,
+    errorMyArticles,
+    hasMoreMyArticles,
+    selectedDiscipline,
+    selectedSubDiscipline,
+    disciplines,
+  } = useAppSelector((state) => state.articles);
   const { user } = useAppSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
-  useEffect(() => {
-    loadArticles(true);
-  }, []);
+  const listData = useMemo((): MyListItem[] => {
+    const data: MyListItem[] = [];
+    let articlesToList = [...myArticles]; // Use myArticles
 
-  const loadArticles = async (isRefreshing = false) => {
-    try {
-      console.log('Loading my articles with params:', {
-        offset: isRefreshing ? 0 : items.length,
-        refresh: isRefreshing,
-        filterByUserSubs: true,
-        userId: user?.id
-      });
-      
-      const result = await dispatch(fetchArticles({
-        discipline: 'all',
-        offset: isRefreshing ? 0 : items.length,
-        refresh: isRefreshing,
-        filterByUserSubs: true,
-        userId: user?.id
-      })).unwrap();
-      
-      console.log('My articles loaded:', result);
-    } catch (error) {
-      console.error('Error loading my articles:', error);
+    if (articlesToList.length > 0 && articlesToList[0].is_article_of_the_day) {
+      data.push("🔥 Article du jour");
+      data.push(articlesToList.shift()!); // Add the AOTD article
     }
-  };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadArticles(true);
-    setRefreshing(false);
-  };
-
-  const handleLoadMore = () => {
-    if (!loading && hasMore) {
-      loadArticles();
+    if (articlesToList.length > 0) {
+      // If AOTD was added, or if it wasn't but there are still articles,
+      // add the "previous articles" header.
+      // Only add if there are actual articles for this section.
+      data.push("📖 Articles précédents");
+      articlesToList.forEach(article => data.push(article));
     }
-  };
+    return data;
+  }, [myArticles]);
 
-  const handleOpenLink = async (link: string) => {
-    try {
-      await Linking.openURL(link);
-    } catch (error) {
-      console.error('Error opening link:', error);
-    }
-  };
-
-  const renderArticle = ({ item }: { item: Article }) => (
-    <View style={styles.articleCard}>
-      {item.is_article_of_the_day && (
-        <View style={styles.aotdBadge}>
-          <Text style={styles.aotdText}>Article du jour</Text>
-        </View>
-      )}
-      <Text style={styles.articleTitle}>{item.title}</Text>
-      <Text style={styles.articleJournal}>{item.journal}</Text>
-      <View style={styles.articleMeta}>
-        <View style={styles.metaItem}>
-          <Ionicons name="time-outline" size={16} color="#666" />
-          <Text style={styles.metaText}>
-            {new Date(item.published_at).toLocaleDateString()}
-          </Text>
-        </View>
-        <View style={styles.metaItem}>
-          <Ionicons name="star-outline" size={16} color="#666" />
-          <Text style={styles.metaText}>{item.grade}</Text>
-        </View>
-      </View>
-      <View style={styles.articleStats}>
-        <View style={styles.statItem}>
-          <Ionicons name={item.is_liked ? "heart" : "heart-outline"} size={16} color={item.is_liked ? "#ff4444" : "#666"} />
-          <Text style={styles.statText}>{item.like_count}</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Ionicons name={item.is_read ? "eye" : "eye-outline"} size={16} color={item.is_read ? "#007AFF" : "#666"} />
-          <Text style={styles.statText}>{item.read_count}</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Ionicons name={item.is_thumbed_up ? "thumbs-up" : "thumbs-up-outline"} size={16} color={item.is_thumbed_up ? "#4CAF50" : "#666"} />
-          <Text style={styles.statText}>{item.thumbs_up_count}</Text>
-        </View>
-      </View>
-      {item.link && (
-        <Text 
-          style={styles.articleLink}
-          onPress={() => handleOpenLink(item.link)}
-        >
-          Lire l'article
-        </Text>
-      )}
-    </View>
+  const stickyHeaderIndices = useMemo(() => 
+    listData
+      .map((item, index) => (typeof item === 'string' ? index : null))
+      .filter(item => item !== null) as number[],
+    [listData]
   );
 
-  if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(resetFiltersToAll());
+      if (user?.id) dispatch(fetchUserSubscriptionStructure(user.id));
+      return () => { /* dispatch(clearMyArticles()); // Handled by resetFiltersToAll */ };
+    }, [dispatch, user?.id])
+  );
+
+  useEffect(() => {
+    if (user?.id && disciplines.length === 0) dispatch(fetchUserSubscriptionStructure(user.id));
+    const shouldLoad = selectedDiscipline === 'all' || (selectedDiscipline !== 'all' && selectedSubDiscipline !== null);
+    if (user?.id && shouldLoad && (selectedDiscipline === 'all' || disciplines.length > 0)) {
+      loadArticles(true);
+    }
+  }, [selectedDiscipline, selectedSubDiscipline, user?.id, disciplines.length, dispatch]);
+
+  const loadArticles = async (isRefreshing = false) => {
+    if (!user?.id || (loadingMyArticles && !isRefreshing)) return;
+    try {
+      const currentOffset = isRefreshing ? 0 : myArticles.length;
+      await dispatch(fetchArticles({
+        discipline: selectedDiscipline, 
+        subDiscipline: selectedSubDiscipline === 'all' ? null : selectedSubDiscipline,
+        offset: currentOffset, 
+        refresh: isRefreshing,
+        userId: user.id, 
+        filterByUserSubs: true 
+      })).unwrap();
+    } catch (error) { console.error('Error loading my articles:', error); }
+  };
+
+  const handleDisciplineChange = (newDisciplineName: string) => dispatch(setSelectedDiscipline(newDisciplineName));
+  const handleSubDisciplineChange = (newSubDisciplineName: string | null) => dispatch(setSelectedSubDiscipline(newSubDisciplineName));
+  const handleRefresh = async () => { setRefreshing(true); if (user?.id) await loadArticles(true); setRefreshing(false); };
+  const handleLoadMore = () => { if (!loadingMyArticles && hasMoreMyArticles && user?.id) loadArticles(); };
+  const handleOpenLink = async (link: string) => { try { await Linking.openURL(link); } catch (e) { console.error('Error opening link:', e); } };
+  const handleLikePress = (article: Article) => { if (!user?.id) return; dispatch(toggleLike({ articleId: article.article_id, userId: user.id })); };
+  const handleReadPress = (article: Article) => { if (!user?.id) return; dispatch(toggleRead({ articleId: article.article_id, userId: user.id })); };
+  const handleThumbsUpPress = (article: Article) => { if (!user?.id) return; dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id })); };
+  const openArticleModal = (article: Article) => { setSelectedArticle(article); setModalVisible(true); };
+  const closeArticleModal = () => { setModalVisible(false); setSelectedArticle(null); };
+
+  if (errorMyArticles) return <View style={styles.centerContainer}><Text style={styles.errorText}>{errorMyArticles}</Text></View>;
+
+  const disciplineFilterOptions = ['all', ...disciplines.map(d => d.name)];
+  let subDisciplineFilterOptions: string[] = [];
+  if (selectedDiscipline !== 'all') {
+    const currentActiveDiscipline = disciplines.find(d => d.name === selectedDiscipline);
+    if (currentActiveDiscipline?.subscribed_sub_disciplines) {
+      subDisciplineFilterOptions = currentActiveDiscipline.subscribed_sub_disciplines.map(sd => sd.name);
+    }
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={items}
-        renderItem={renderArticle}
-        keyExtractor={(item) => item.article_id.toString()}
+    <SafeAreaView style={styles.container}>
+      <View style={styles.fixedHeader}>
+        <Text style={styles.fixedHeaderText}>Mes Articles</Text>
+      </View>
+      <FilterHeader
+        disciplines={disciplineFilterOptions}
+        subDisciplines={subDisciplineFilterOptions}
+        selectedDiscipline={selectedDiscipline}
+        selectedSubDiscipline={selectedSubDiscipline}
+        selectedGrade={null}
+        onDisciplineChange={handleDisciplineChange}
+        onSubDisciplineChange={handleSubDisciplineChange}
+        onGradeChange={() => {}}
+        loadingSubDisciplines={false}
+      />
+      
+      <FlashList
+        data={listData}
+        renderItem={({ item }: ListRenderItemInfo<MyListItem>) => {
+          if (typeof item === 'string') {
+            return <Text style={styles.sectionHeader}>{item}</Text>;
+          } else {
+            return (
+              <ArticleItem
+                article={item as Article}
+                onPress={openArticleModal}
+                onLinkPress={handleOpenLink}
+                onLikePress={handleLikePress}
+                onThumbsUpPress={handleThumbsUpPress}
+              />
+            );
+          }
+        }}
+        getItemType={(item: MyListItem) => typeof item === 'string' ? 'sectionHeader' : 'row'}
+        stickyHeaderIndices={stickyHeaderIndices}
+        estimatedItemSize={150}
+        keyExtractor={(item, index) => typeof item === 'string' ? item + index : (item as Article).article_id.toString() + index}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-        ListFooterComponent={
-          loading && !refreshing ? (
-            <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
-          ) : null
-        }
-        ListEmptyComponent={
-          !loading && !refreshing ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Vous n'avez pas encore d'articles</Text>
-            </View>
-          ) : null
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        ListFooterComponent={loadingMyArticles && !refreshing ? <ActivityIndicator size="large" color={COLORS.iconPrimary} style={styles.loader} /> : null}
+        ListEmptyComponent={!loadingMyArticles && !refreshing && myArticles.length === 0 ?
+          <View style={styles.emptyContainer}><Text style={styles.emptyText}>Aucun article trouvé dans votre veille.</Text></View> : null}
       />
-    </View>
+
+      <ArticleModal visible={modalVisible} article={selectedArticle} onClose={closeArticleModal} />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  articleCard: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    backgroundColor: '#fff',
-  },
-  aotdBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: '#FFD700',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
-  },
-  aotdText: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  articleTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  articleJournal: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  articleMeta: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  metaText: {
-    fontSize: 12,
-    color: '#666',
-    marginLeft: 4,
-  },
-  articleStats: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  statText: {
-    fontSize: 12,
-    color: '#666',
-    marginLeft: 4,
-  },
-  articleLink: {
-    color: '#007AFF',
-    fontSize: 14,
-    textDecorationLine: 'underline',
-  },
-  loader: {
-    padding: 20,
-  },
-  errorText: {
-    color: 'red',
-    textAlign: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
+  container: { 
+    flex: 1, 
+    backgroundColor: COLORS.backgroundPrimary
+  } as ViewStyle,
+  fixedHeader: { 
+    padding: 15, 
+    paddingTop: Platform.OS === 'ios' ? 20 : 15, 
+    backgroundColor: COLORS.headerBackground,
+  } as ViewStyle,
+  fixedHeaderText: { 
+    fontSize: FONT_SIZES['2xl'],
+    fontFamily: FONTS.sans.bold,
+    textAlign: 'left',
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    color: COLORS.headerText,
+  } as TextStyle,
+  centerContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 20, 
+    backgroundColor: COLORS.backgroundPrimary,
+  } as ViewStyle,
+  errorText: { 
+    color: COLORS.error,
+    textAlign: 'center', 
+    fontSize: FONT_SIZES.base, 
+    fontFamily: FONTS.sans.regular 
+  } as TextStyle,
+  loader: { 
+    padding: 20 
+  } as ViewStyle,
+  emptyContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 20, 
+    backgroundColor: COLORS.backgroundPrimary,
+  } as ViewStyle,
+  emptyText: { 
+    fontSize: FONT_SIZES.base, 
+    fontFamily: FONTS.sans.regular, 
+    color: COLORS.textSecondary,
+  } as TextStyle,
+  sectionHeader: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.sans.bold,
+    backgroundColor: COLORS.backgroundPrimary,
+    paddingVertical: 12,
+    paddingHorizontal: 15, 
+    color: COLORS.textPrimary,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  } as TextStyle,
 }); 

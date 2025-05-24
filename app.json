@@ -2,6 +2,7 @@
   "expo": {
     "name": "my-app",
     "slug": "my-app",
+    "scheme": "veillemedicale",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,9 +12,18 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "plugins": ["expo-router"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      "expo-video",
+      "expo-font"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.veillemedicale.myapp"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,6 +35,11 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6828268d-d5c4-428f-9bd9-49e9b91f9282"
+      }
     }
   }
 }

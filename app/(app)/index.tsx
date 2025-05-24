@@ -1,46 +1,121 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, FlatList, Linking, Modal, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
-import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { setSelectedDiscipline, fetchArticles } from '../../store/articlesSlice';
-import { Picker } from '@react-native-picker/picker';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+  SafeAreaView,
+  ViewStyle,
+  TextStyle,
+  RefreshControl,
+  Linking,
+} from 'react-native';
+import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { 
+  fetchArticles, 
+  fetchAllDisciplinesStructure,
+  setSelectedDiscipline,
+  setSelectedSubDiscipline,
+  setSelectedGrade,
+  fetchSubDisciplinesForFilter,
+  toggleLike,
+  toggleRead,
+  toggleThumbsUp,
+  clearArticles,
+  resetFiltersToAll,
+} from '../../store/articlesSlice';
+import FilterHeader from '../../components/FilterHeader';
+import ArticleItem from '../../components/ArticleItem'
+import ArticleModal from '../../components/ArticleModal';
 import { Article } from '../../types';
-import { Ionicons } from '@expo/vector-icons';
+import { FONTS, FONT_SIZES, LINE_HEIGHTS } from '../../assets/constants/fonts';
+import { SCREEN_HEIGHT, SCREEN_WIDTH } from '../../assets/constants/dimensions';
+import { COLORS } from '../../assets/constants/colors';
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const SCREEN_WIDTH = Dimensions.get('window').width;
+// Define a union type for items in FlashList: string for headers, Article for items
+type ListItem = string | Article;
 
 export default function ArticlesScreen() {
   const dispatch = useAppDispatch();
-  const { items, loading, error, hasMore, selectedDiscipline, disciplines } = useAppSelector((state) => state.articles);
+  const { 
+    items, 
+    loadingItems,
+    errorItems,
+    hasMoreItems,
+    selectedDiscipline, 
+    selectedSubDiscipline,
+    selectedGrade,
+    allDisciplines,
+    subDisciplinesForFilter,
+    loadingSubDisciplinesForFilter,
+  } = useAppSelector((state) => state.articles);
   const { user } = useAppSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
+  // Prepare data for FlashList (flattened with headers)
+  const listData = useMemo((): ListItem[] => {
+    const data: ListItem[] = [];
+    let articlesToList = [...items];
+
+    if (articlesToList.length > 0 && articlesToList[0].is_article_of_the_day) {
+      data.push("🔥 Article du jour");
+      data.push(articlesToList.shift()!); // Add the AOTD article
+    }
+
+    if (articlesToList.length > 0) {
+      if (data.length > 0) { // If AOTD was added, then these are "previous"
+        data.push("📖 Articles précédents");
+      } // If no AOTD, the first header might implicitly be considered general, or add one if needed
+      articlesToList.forEach(article => data.push(article));
+    }
+    return data;
+  }, [items]);
+
+  // Calculate sticky header indices for FlashList
+  const stickyHeaderIndices = useMemo(() => 
+    listData
+      .map((item, index) => (typeof item === 'string' ? index : null))
+      .filter(item => item !== null) as number[],
+    [listData]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(resetFiltersToAll());
+      dispatch(fetchAllDisciplinesStructure());
+      return () => {
+        dispatch(clearArticles());
+      };
+    }, [dispatch])
+  );
+
   useEffect(() => {
-    console.log('Selected discipline changed:', selectedDiscipline);
-    loadArticles(true);
-  }, [selectedDiscipline]);
+    const shouldLoad = 
+      selectedDiscipline === 'all' || 
+      (selectedDiscipline !== 'all' && selectedSubDiscipline !== null);
+
+    if (shouldLoad && (selectedDiscipline === 'all' || allDisciplines.length > 0)) {
+      loadArticles(true);
+    }
+  }, [selectedDiscipline, selectedSubDiscipline, allDisciplines.length, dispatch]);
 
   const loadArticles = async (isRefreshing = false) => {
+    if (loadingItems && !isRefreshing) return;
     try {
-      console.log('Loading articles with params:', {
+      const currentOffset = isRefreshing ? 0 : items.length;
+      await dispatch(fetchArticles({
         discipline: selectedDiscipline,
-        offset: isRefreshing ? 0 : items.length,
+        subDiscipline: selectedSubDiscipline === 'all' ? null : selectedSubDiscipline,
+        offset: currentOffset,
         refresh: isRefreshing,
-        filterByUserSubs: false,
-        userId: user?.id
-      });
-      
-      const result = await dispatch(fetchArticles({
-        discipline: selectedDiscipline,
-        offset: isRefreshing ? 0 : items.length,
-        refresh: isRefreshing,
-        filterByUserSubs: false,
-        userId: user?.id
+        userId: user?.id,
+        filterByUserSubs: false
       })).unwrap();
-      
-      console.log('Articles loaded:', result);
     } catch (error) {
       console.error('Error loading articles:', error);
     }
@@ -53,7 +128,7 @@ export default function ArticlesScreen() {
   };
 
   const handleLoadMore = () => {
-    if (!loading && hasMore) {
+    if (!loadingItems && hasMoreItems) {
       loadArticles();
     }
   };
@@ -61,9 +136,28 @@ export default function ArticlesScreen() {
   const handleOpenLink = async (link: string) => {
     try {
       await Linking.openURL(link);
-    } catch (error) {
-      console.error('Error opening link:', error);
+    } catch (e) {
+      console.error('Error opening link:', e);
     }
+  };
+
+  const handleLikePress = (article: Article) => {
+    if (!user?.id) {
+      return;
+    }
+    dispatch(toggleLike({ articleId: article.article_id, userId: user.id }));
+  };
+
+  const handleReadPress = (article: Article) => {
+    if (!user?.id) return;
+    dispatch(toggleRead({ articleId: article.article_id, userId: user.id }));
+  };
+
+  const handleThumbsUpPress = (article: Article) => {
+    if (!user?.id) {
+      return;
+    }
+    dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id }));
   };
 
   const openArticleModal = (article: Article) => {
@@ -76,310 +170,248 @@ export default function ArticlesScreen() {
     setSelectedArticle(null);
   };
 
-  const renderArticle = ({ item }: { item: Article }) => (
-    <TouchableOpacity onPress={() => openArticleModal(item)} activeOpacity={0.8}>
-      <View style={styles.articleCard}>
-        {item.is_article_of_the_day && (
-          <View style={styles.aotdBadge}>
-            <Text style={styles.aotdText}>Article du jour</Text>
-          </View>
-        )}
-        <Text style={styles.articleTitle}>{item.title}</Text>
-        <Text style={styles.articleJournal}>{item.journal}</Text>
-        <View style={styles.articleMeta}>
-          <View style={styles.metaItem}>
-            <Ionicons name="time-outline" size={16} color="#666" />
-            <Text style={styles.metaText}>
-              {new Date(item.published_at).toLocaleDateString()}
-            </Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Ionicons name="star-outline" size={16} color="#666" />
-            <Text style={styles.metaText}>{item.grade}</Text>
-          </View>
-        </View>
-        <View style={styles.articleStats}>
-          <View style={styles.statItem}>
-            <Ionicons name={item.is_liked ? "heart" : "heart-outline"} size={16} color={item.is_liked ? "#ff4444" : "#666"} />
-            <Text style={styles.statText}>{item.like_count}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Ionicons name={item.is_read ? "eye" : "eye-outline"} size={16} color={item.is_read ? "#007AFF" : "#666"} />
-            <Text style={styles.statText}>{item.read_count}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Ionicons name={item.is_thumbed_up ? "thumbs-up" : "thumbs-up-outline"} size={16} color={item.is_thumbed_up ? "#4CAF50" : "#666"} />
-            <Text style={styles.statText}>{item.thumbs_up_count}</Text>
-          </View>
-        </View>
-        {item.link && (
-          <Text 
-            style={styles.articleLink}
-            onPress={() => handleOpenLink(item.link)}
-          >
-            Lire l'article
-          </Text>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+  const handleDisciplineChange = (newDisciplineName: string) => {
+    dispatch(setSelectedDiscipline(newDisciplineName));
+    if (newDisciplineName !== 'all') {
+      const disciplineData = allDisciplines.find(d => d.name === newDisciplineName);
+      if (disciplineData?.id) dispatch(fetchSubDisciplinesForFilter(disciplineData.id));
+    }
+  };
 
-  if (error) {
+  const handleSubDisciplineChange = (newSubDisciplineName: string | null) => {
+    dispatch(setSelectedSubDiscipline(newSubDisciplineName));
+  };
+
+  const handleGradeChange = (newGrade: string | null) => {
+    dispatch(setSelectedGrade(newGrade));
+  };
+
+  if (errorItems) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorText}>{errorItems}</Text>
       </View>
     );
   }
 
+  const disciplineOptions = ['all', ...(allDisciplines || []).map(d => d.name)];
+  const subDisciplineOptions = selectedDiscipline !== 'all' && subDisciplinesForFilter.length > 0 
+    ? ['all', ...subDisciplinesForFilter.map(sd => sd.name)] 
+    : [];
+
   return (
-    <View style={styles.container}>
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={selectedDiscipline}
-          onValueChange={(value) => dispatch(setSelectedDiscipline(value))}
-          style={styles.picker}
-        >
-          {disciplines.map((discipline) => (
-            <Picker.Item
-              key={discipline}
-              label={discipline.charAt(0).toUpperCase() + discipline.slice(1)}
-              value={discipline}
-            />
-          ))}
-        </Picker>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.fixedHeader}>
+        <Text style={styles.fixedHeaderText}>Les Articles</Text>
       </View>
-      <FlatList
-        data={items}
-        renderItem={renderArticle}
-        keyExtractor={(item) => item.article_id.toString()}
+      <FilterHeader
+        disciplines={disciplineOptions}
+        subDisciplines={subDisciplineOptions}
+        selectedDiscipline={selectedDiscipline}
+        selectedSubDiscipline={selectedSubDiscipline}
+        selectedGrade={selectedGrade}
+        onDisciplineChange={handleDisciplineChange}
+        onSubDisciplineChange={handleSubDisciplineChange}
+        onGradeChange={handleGradeChange}
+        loadingSubDisciplines={loadingSubDisciplinesForFilter}
+      />
+      
+      <FlashList
+        data={listData}
+        renderItem={({ item }: ListRenderItemInfo<ListItem>) => {
+          if (typeof item === 'string') {
+            // Render section header
+            return <Text style={styles.sectionHeader}>{item}</Text>;
+          } else {
+            // Render article item
+            return (
+              <ArticleItem
+                article={item as Article} // Cast item to Article
+                onPress={openArticleModal}
+                onLinkPress={handleOpenLink}
+                onLikePress={handleLikePress}
+                onThumbsUpPress={handleThumbsUpPress}
+              />
+            );
+          }
+        }}
+        getItemType={(item: ListItem) => {
+          return typeof item === 'string' ? 'sectionHeader' : 'row';
+        }}
+        stickyHeaderIndices={stickyHeaderIndices}
+        estimatedItemSize={150} // Provide an estimated item size for FlashList performance
+        keyExtractor={(item, index) => { // More robust key extractor
+          if (typeof item === 'string') return item + index; // Header key
+          return (item as Article).article_id.toString() + index; // Article key
+        }}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
         ListFooterComponent={
-          loading && !refreshing ? (
-            <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />
+          loadingItems && !refreshing ? (
+            <ActivityIndicator size="large" color={COLORS.iconPrimary} style={styles.loader} />
           ) : null
         }
         ListEmptyComponent={
-          !loading && !refreshing ? (
+          !loadingItems && !refreshing && listData.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>Aucun article trouvé</Text>
             </View>
           ) : null
         }
       />
-      <Modal
+
+      <ArticleModal
         visible={modalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={closeArticleModal}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity style={styles.closeButton} onPress={closeArticleModal}>
-              <Ionicons name="close" size={28} color="#333" />
-            </TouchableOpacity>
-            {selectedArticle && (
-              <ScrollView contentContainerStyle={styles.modalScroll}>
-                <Text style={styles.modalTitle}>{selectedArticle.title}</Text>
-                <Text style={styles.modalJournal}>{selectedArticle.journal}</Text>
-                <View style={styles.articleMeta}>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="time-outline" size={16} color="#666" />
-                    <Text style={styles.metaText}>
-                      {new Date(selectedArticle.published_at).toLocaleDateString()}
-                    </Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="star-outline" size={16} color="#666" />
-                    <Text style={styles.metaText}>{selectedArticle.grade}</Text>
-                  </View>
-                </View>
-                <View style={styles.articleStats}>
-                  <View style={styles.statItem}>
-                    <Ionicons name={selectedArticle.is_liked ? "heart" : "heart-outline"} size={16} color={selectedArticle.is_liked ? "#ff4444" : "#666"} />
-                    <Text style={styles.statText}>{selectedArticle.like_count}</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <Ionicons name={selectedArticle.is_read ? "eye" : "eye-outline"} size={16} color={selectedArticle.is_read ? "#007AFF" : "#666"} />
-                    <Text style={styles.statText}>{selectedArticle.read_count}</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <Ionicons name={selectedArticle.is_thumbed_up ? "thumbs-up" : "thumbs-up-outline"} size={16} color={selectedArticle.is_thumbed_up ? "#4CAF50" : "#666"} />
-                    <Text style={styles.statText}>{selectedArticle.thumbs_up_count}</Text>
-                  </View>
-                </View>
-                <Text style={styles.modalContentText}>{selectedArticle.content}</Text>
-                {selectedArticle.link && (
-                  <Text 
-                    style={styles.articleLink}
-                    onPress={() => handleOpenLink(selectedArticle.link)}
-                  >
-                    Lire l'article original
-                  </Text>
-                )}
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-    </View>
+        article={selectedArticle}
+        onClose={closeArticleModal}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    flexDirection: 'column',
-    backgroundColor: '#fff',
-  },
-  pickerContainer: {
-    height: SCREEN_HEIGHT * 0.2,
-    backgroundColor: '#f5f5f5',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  picker: {
-    height: 50,
-  },
+    backgroundColor: COLORS.backgroundPrimary,
+  } as ViewStyle,
+  fixedHeader: { padding: 15, paddingTop: Platform.OS === 'ios' ? 20 : 15, backgroundColor: COLORS.headerBackground } as ViewStyle,
+  fixedHeaderText: { 
+    fontSize: FONT_SIZES['2xl'],
+    fontFamily: FONTS.sans.bold,
+    textAlign: 'left',
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    color: COLORS.headerText,
+  } as TextStyle,
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-  },
-  articleCard: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    backgroundColor: '#fff',
-  },
-  aotdBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: '#FFD700',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
-  },
-  aotdText: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  articleTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  articleJournal: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  articleMeta: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  metaText: {
-    fontSize: 12,
-    color: '#666',
-    marginLeft: 4,
-  },
-  articleStats: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  statText: {
-    fontSize: 12,
-    color: '#666',
-    marginLeft: 4,
-  },
-  articleLink: {
-    color: '#007AFF',
-    fontSize: 14,
-    textDecorationLine: 'underline',
-    marginTop: 10,
-  },
+    backgroundColor: COLORS.backgroundPrimary,
+  } as ViewStyle,
+  errorText: {
+    color: COLORS.error,
+    textAlign: 'center',
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+  } as TextStyle,
   loader: {
     padding: 20,
-  },
-  errorText: {
-    color: 'red',
-    textAlign: 'center',
-  },
+  } as ViewStyle,
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-  },
+    backgroundColor: COLORS.backgroundPrimary,
+  } as ViewStyle,
   emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+  } as TextStyle,
   modalOverlay: {
     flex: 1,
-    // backgroundColor: 'rgba(0,0,0,0.1)',
     justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
+  } as ViewStyle,
   modalContent: {
-    width: '100%',
-    height: SCREEN_HEIGHT * 0.94,
+    flex: 1,
+    paddingTop: SCREEN_HEIGHT * 0.04,
     backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  } as ViewStyle,
   closeButton: {
     position: 'absolute',
-    top: 10,
-    left: 10,
-    zIndex: 10,
-    backgroundColor: 'rgba(255,255,255,0.8)',
+    top: SCREEN_HEIGHT * 0.05,
+    left: SCREEN_WIDTH * 0.03,
+    zIndex: 1,
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 20,
-    padding: 2,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    marginTop: 30,
-    textAlign: 'center',
-  },
-  modalJournal: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
+  } as ViewStyle,
   modalScroll: {
-    paddingBottom: 40,
-  },
-  modalContentText: {
-    fontSize: 16,
-    color: '#222',
-    marginTop: 16,
+    padding: 24,
+    paddingTop: 60,
+  } as ViewStyle,
+  modalTitle: {
+    fontSize: FONT_SIZES['2xl'],
+    fontFamily: FONTS.serifDisplay.bold,
+    marginBottom: 8,
+    lineHeight: LINE_HEIGHTS['2xl'],
+  } as TextStyle,
+  modalJournal: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    color: '#666',
     marginBottom: 16,
-  },
+  } as TextStyle,
+  modalContentText: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    lineHeight: LINE_HEIGHTS.base,
+    color: '#333',
+    marginBottom: 16,
+  } as TextStyle,
+  articleMeta: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  } as ViewStyle,
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  } as ViewStyle,
+  metaText: {
+    marginLeft: 4,
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: '#666',
+  } as TextStyle,
+  articleStats: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  } as ViewStyle,
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  } as ViewStyle,
+  statText: {
+    marginLeft: 4,
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: '#666',
+  } as TextStyle,
+  articleLink: {
+    color: '#007AFF',
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.bold,
+    textDecorationLine: 'underline',
+  } as TextStyle,
+  sectionHeader: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.sans.bold,
+    backgroundColor: COLORS.backgroundPrimary,
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    color: COLORS.textPrimary,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  } as TextStyle,
 }); 

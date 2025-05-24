@@ -21,6 +21,8 @@ import { supabase } from '../../lib/supabase';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { COLORS } from '../../assets/constants/colors';
+import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -245,7 +247,7 @@ export default function ProfileScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Choisir votre statut</Text>
             <TouchableOpacity onPress={() => setShowStatusModal(false)}>
-              <Ionicons name="close" size={24} color="#000" />
+              <Ionicons name="close" size={24} color={COLORS.iconPrimary} />
             </TouchableOpacity>
           </View>
           <FlatList
@@ -283,7 +285,7 @@ export default function ProfileScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Fréquence des notifications</Text>
             <TouchableOpacity onPress={() => setShowNotificationModal(false)}>
-              <Ionicons name="close" size={24} color="#000" />
+              <Ionicons name="close" size={24} color={COLORS.iconPrimary} />
             </TouchableOpacity>
           </View>
           <FlatList
@@ -312,7 +314,7 @@ export default function ProfileScreen() {
   if (loading && !profile) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" color={COLORS.iconPrimary} />
       </View>
     );
   }
@@ -344,6 +346,7 @@ export default function ProfileScreen() {
               value={firstName}
               onChangeText={setFirstName}
               placeholder="Votre prénom"
+              placeholderTextColor={COLORS.textPlaceholder}
             />
           </View>
 
@@ -354,6 +357,7 @@ export default function ProfileScreen() {
               value={lastName}
               onChangeText={setLastName}
               placeholder="Votre nom"
+              placeholderTextColor={COLORS.textPlaceholder}
             />
           </View>
 
@@ -366,7 +370,7 @@ export default function ProfileScreen() {
               <Text style={styles.selectButtonText}>
                 {status || 'Choisir votre statut'}
               </Text>
-              <Ionicons name="chevron-down" size={20} color="#666" />
+              <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -377,6 +381,7 @@ export default function ProfileScreen() {
               value={specialty}
               onChangeText={setSpecialty}
               placeholder="Ex: Médecine Générale"
+              placeholderTextColor={COLORS.textPlaceholder}
             />
           </View>
 
@@ -389,7 +394,7 @@ export default function ProfileScreen() {
               <Text style={styles.selectButtonText}>
                 {dateOfBirth || 'Choisir une date'}
               </Text>
-              <Ionicons name="calendar" size={20} color="#666" />
+              <Ionicons name="calendar" size={20} color={COLORS.iconSecondary} />
             </TouchableOpacity>
             {showDatePicker && (
               <DateTimePicker
@@ -419,7 +424,7 @@ export default function ProfileScreen() {
               <Text style={styles.selectButtonText}>
                 {notificationOptions.find(opt => opt.value === notificationFrequency)?.label || 'Choisir une fréquence'}
               </Text>
-              <Ionicons name="chevron-down" size={20} color="#666" />
+              <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -483,7 +488,7 @@ export default function ProfileScreen() {
                 <View key={discipline.id} style={styles.disciplineGroup}>
                   <View style={styles.disciplineHeader}>
                     <TouchableOpacity
-                      style={styles.disciplineCheckbox}
+                      style={styles.disciplineCheckboxContainer}
                       onPress={() => handleMainDisciplineChange(
                         discipline.id,
                         !currentSubscriptionsSet.has(`d:${discipline.id}`)
@@ -510,7 +515,7 @@ export default function ProfileScreen() {
                               : 'chevron-down'
                           }
                           size={20}
-                          color="#666"
+                          color={COLORS.iconSecondary}
                         />
                       </TouchableOpacity>
                     )}
@@ -556,7 +561,7 @@ export default function ProfileScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={COLORS.textOnPrimaryButton} />
           ) : (
             <Text style={styles.saveButtonText}>Enregistrer les modifications</Text>
           )}
@@ -580,7 +585,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.backgroundPrimary,
   },
   scrollView: {
     flex: 1,
@@ -593,62 +598,67 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: COLORS.backgroundPrimary,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: FONT_SIZES['2xl'],
+    fontFamily: FONTS.sans.bold,
     marginBottom: 20,
-    color: '#000',
+    color: COLORS.textPrimary,
   },
   section: {
     marginBottom: 30,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.backgroundSecondary,
     borderRadius: 10,
     padding: 15,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.sans.bold,
     marginBottom: 15,
-    color: '#000',
+    color: COLORS.textPrimary,
   },
   inputContainer: {
     marginBottom: 15,
   },
   label: {
-    fontSize: 14,
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
     marginBottom: 5,
-    color: '#666',
+    color: COLORS.textSecondary,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: COLORS.borderInput,
     borderRadius: 5,
     padding: 10,
-    fontSize: 16,
-    backgroundColor: '#fff',
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    backgroundColor: COLORS.backgroundPrimary,
+    color: COLORS.textPrimary,
   },
   selectButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: COLORS.borderInput,
     borderRadius: 5,
     padding: 10,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.backgroundPrimary,
   },
   selectButtonText: {
-    fontSize: 16,
-    color: '#000',
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textPrimary,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.backgroundModal,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -659,23 +669,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderPrimary,
+    paddingBottom: 10,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.textPrimary,
   },
   modalItem: {
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.borderPrimary,
   },
   modalItemText: {
-    fontSize: 16,
-    color: '#000',
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textPrimary,
   },
   modalItemTextSelected: {
-    color: '#007AFF',
-    fontWeight: 'bold',
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.textPrimary,
   },
   gradeContainer: {
     flexDirection: 'row',
@@ -686,47 +701,52 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: COLORS.borderInput,
     borderRadius: 5,
     marginHorizontal: 5,
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.backgroundPrimary,
   },
   gradeButtonSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    borderColor: COLORS.buttonBackgroundPrimary,
   },
   gradeButtonText: {
-    color: '#666',
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textPrimary,
   },
   gradeButtonTextSelected: {
-    color: '#fff',
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.buttonTextPrimary,
   },
   infoButton: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#666',
+    backgroundColor: COLORS.iconSecondary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 5,
   },
   infoButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    color: COLORS.white,
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.bold,
   },
   gradeInfoContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.backgroundPrimary,
     borderRadius: 5,
     padding: 15,
     marginTop: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderPrimary,
   },
   gradeInfoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.sans.bold,
     marginBottom: 10,
     textAlign: 'center',
+    color: COLORS.textPrimary,
   },
   gradeInfoItem: {
     marginBottom: 15,
@@ -737,26 +757,35 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   gradeInfoGrade: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
     marginRight: 10,
+    color: COLORS.textPrimary,
   },
   gradeInfoLabel: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
   },
   gradeInfoNiveau: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.bold,
     marginBottom: 5,
+    color: COLORS.textPrimary,
   },
   gradeInfoDetail: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
     marginLeft: 10,
   },
   disciplinesContainer: {
     maxHeight: 300,
+    borderColor: COLORS.borderPrimary,
+    borderWidth: 1,
+    borderRadius: 5,
+    padding: 10,
+    backgroundColor: COLORS.backgroundPrimary,
   },
   disciplineGroup: {
     marginBottom: 10,
@@ -765,8 +794,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 5,
   },
-  disciplineCheckbox: {
+  disciplineCheckboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
@@ -775,17 +805,20 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderWidth: 1,
-    borderColor: '#666',
+    borderColor: COLORS.iconSecondary,
     borderRadius: 3,
     marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    borderColor: COLORS.buttonBackgroundPrimary,
   },
   disciplineName: {
-    fontSize: 16,
-    color: '#000',
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textPrimary,
   },
   expandButton: {
     padding: 5,
@@ -798,52 +831,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 5,
+    paddingVertical: 3,
   },
   subDisciplineName: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
   },
   saveButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.buttonBackgroundPrimary,
     padding: 15,
     borderRadius: 5,
     alignItems: 'center',
     marginBottom: 15,
   },
   saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: COLORS.buttonTextPrimary,
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
   },
   logoutButton: {
-    backgroundColor: '#ff3b30',
+    backgroundColor: COLORS.backgroundSecondary,
     padding: 15,
     borderRadius: 5,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderPrimary,
   },
   logoutButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
   },
   errorContainer: {
-    backgroundColor: '#ffebee',
+    backgroundColor: COLORS.errorBackground || '#ffebee',
     padding: 10,
     borderRadius: 5,
     marginBottom: 15,
   },
   errorText: {
-    color: '#c62828',
-    fontSize: 14,
+    color: COLORS.errorText || COLORS.error,
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
   },
   successContainer: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: COLORS.successBackground || '#e8f5e9',
     padding: 10,
     borderRadius: 5,
     marginBottom: 15,
   },
   successText: {
-    color: '#2e7d32',
-    fontSize: 14,
+    color: COLORS.successText || COLORS.success,
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
   },
 }); 

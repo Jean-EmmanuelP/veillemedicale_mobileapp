@@ -1,11 +1,15 @@
 export interface Article {
   article_id: number;
+  id: number;
   title: string;
   content: string;
   published_at: string;
+  created_at: string;
   link: string;
   grade: string;
   journal: string;
+  discipline: string;
+  sub_discipline: string | null;
   is_read: boolean;
   is_liked: boolean;
   like_count: number;

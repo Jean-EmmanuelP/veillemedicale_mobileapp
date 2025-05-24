@@ -1,9 +1,22 @@
 import { Tabs } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
+import { COLORS } from '../../assets/constants/colors';
 
 export default function AppLayout() {
   return (
-    <Tabs screenOptions={{ headerShown: false }}>
+    <Tabs 
+      screenOptions={{
+        headerShown: false, 
+        tabBarShowLabel: false,
+        tabBarStyle: {
+          backgroundColor: COLORS.tabBarBackground,
+          borderTopWidth: 1,
+          borderTopColor: COLORS.borderPrimary,
+        },
+        tabBarActiveTintColor: COLORS.tabBarActiveTint,
+        tabBarInactiveTintColor: COLORS.tabBarInactiveTint,
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
