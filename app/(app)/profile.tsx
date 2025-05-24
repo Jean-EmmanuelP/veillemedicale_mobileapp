@@ -25,7 +25,6 @@ import { COLORS } from '../../assets/constants/colors';
 import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ProfileScreen() {
   const dispatch = useAppDispatch();

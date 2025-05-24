@@ -1,8 +1,41 @@
 import { Tabs } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { COLORS } from '../../assets/constants/colors';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '../../store';
+import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { fetchProfile } from '../../store/profileSlice';
+
+// Helper component for the avatar
+const UserAvatar = ({ color }: { color: string }) => {
+  const { profile } = useSelector((state: RootState) => state.profile);
+
+  if (profile?.first_name) {
+    return (
+      <View style={styles.avatarCircle}>
+        <Text style={styles.avatarInitial}>
+          {profile.first_name.charAt(0).toUpperCase()}
+        </Text>
+      </View>
+    );
+  }
+
+  // Fallback icon if no user data or avatar/firstName
+  // return <FontAwesome name="user" size={24} color={color} />;
+};
 
 export default function AppLayout() {
+  const dispatch = useDispatch();
+  const { user } = useSelector((state: RootState) => state.auth);
+  const userId = user?.id;
+
+  useEffect(() => {
+    if (userId) {
+      dispatch(fetchProfile(userId) as any);
+    }
+  }, [dispatch, userId]);
+
   return (
     <Tabs 
       screenOptions={{
@@ -39,11 +72,31 @@ export default function AppLayout() {
         name="profile"
         options={{
           title: 'Profil',
-          tabBarIcon: ({ color }) => (
-            <FontAwesome name="user" size={24} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <UserAvatar color={color} />,
         }}
       />
     </Tabs>
   );
-} 
+}
+
+const styles = StyleSheet.create({
+  avatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  avatarCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitial: {
+    color: 'grey',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+}); 
