@@ -57,6 +57,8 @@ export default function ProfileScreen() {
   const [showGradeInfo, setShowGradeInfo] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -109,9 +111,54 @@ export default function ProfileScreen() {
       await supabase.auth.signOut();
       dispatch(setUser(null));
       dispatch(setSession(null));
-      router.replace('/login');
+      router.replace('/(auth)');
     } catch (error) {
       Alert.alert('Erreur', 'Erreur lors de la déconnexion');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user?.id) return;
+    
+    setDeleteAccountLoading(true);
+    try {
+      const response = await fetch('https://etxelhjnqbrgwuitltyk.supabase.co/functions/v1/self-deletion-user', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0eGVsaGpucWJyZ3d1aXRsdHlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA2OTE5NzAsImV4cCI6MjA1NjI2Nzk3MH0.EvaK9bCSYaBVaVOIgakKTAVoM8UrDYg2HX7Z-iyWoD4`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          user_id: user.id
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        Alert.alert(
+          'Compte supprimé',
+          'Votre compte et toutes vos données ont été supprimés avec succès.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                dispatch(setUser(null));
+                dispatch(setSession(null));
+                router.replace('/(auth)');
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Erreur', `Erreur lors de la suppression: ${data.error || 'Erreur inconnue'}`);
+      }
+    } catch (error) {
+      console.error('Delete account error:', error);
+      Alert.alert('Erreur', 'Erreur de connexion lors de la suppression du compte');
+    } finally {
+      setDeleteAccountLoading(false);
+      setShowDeleteAccountModal(false);
     }
   };
 
@@ -305,6 +352,65 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             )}
           />
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderDeleteAccountModal = () => (
+    <Modal
+      visible={showDeleteAccountModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowDeleteAccountModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Supprimer le compte</Text>
+            <TouchableOpacity onPress={() => setShowDeleteAccountModal(false)}>
+              <Ionicons name="close" size={24} color={COLORS.iconPrimary} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.deleteAccountContent}>
+            <Ionicons name="warning" size={48} color="#ff6b6b" style={styles.deleteAccountIcon} />
+            <Text style={styles.deleteAccountTitle}>Attention !</Text>
+            <Text style={styles.deleteAccountDescription}>
+              Cette action est irréversible. Toutes vos données seront définitivement supprimées :
+            </Text>
+            <View style={styles.deleteAccountList}>
+              <Text style={styles.deleteAccountListItem}>• Votre profil utilisateur</Text>
+              <Text style={styles.deleteAccountListItem}>• Vos articles sauvegardés</Text>
+              <Text style={styles.deleteAccountListItem}>• Vos préférences de veille</Text>
+              <Text style={styles.deleteAccountListItem}>• Toutes vos données personnelles</Text>
+            </View>
+            <Text style={styles.deleteAccountWarning}>
+              Êtes-vous sûr de vouloir continuer ?
+            </Text>
+          </View>
+
+          <View style={styles.deleteAccountButtons}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowDeleteAccountModal(false)}
+              disabled={deleteAccountLoading}
+            >
+              <Text style={styles.cancelButtonText}>Annuler</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.confirmDeleteButton}
+              onPress={handleDeleteAccount}
+              disabled={deleteAccountLoading}
+            >
+              {deleteAccountLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.confirmDeleteButtonText}>Supprimer définitivement</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -573,10 +679,19 @@ export default function ProfileScreen() {
         >
           <Text style={styles.logoutButtonText}>Déconnexion</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.deleteAccountButton}
+          onPress={() => setShowDeleteAccountModal(true)}
+          disabled={loading}
+        >
+          <Text style={styles.deleteAccountButtonText}>Supprimer mon compte</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {renderStatusModal()}
       {renderNotificationModal()}
+      {renderDeleteAccountModal()}
     </SafeAreaView>
   );
 }
@@ -883,5 +998,91 @@ const styles = StyleSheet.create({
     color: COLORS.successText || COLORS.success,
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.sans.regular,
+  },
+  deleteAccountButton: {
+    backgroundColor: '#FFEBEE',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D32F2F',
+    marginTop: 10,
+  },
+  deleteAccountButtonText: {
+    color: '#D32F2F',
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+  },
+  deleteAccountContent: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  deleteAccountIcon: {
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  deleteAccountTitle: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.sans.bold,
+    marginBottom: 15,
+    color: '#D32F2F',
+    textAlign: 'center',
+  },
+  deleteAccountDescription: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 15,
+    lineHeight: 20,
+  },
+  deleteAccountList: {
+    marginBottom: 20,
+    alignSelf: 'stretch',
+  },
+  deleteAccountListItem: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+    marginBottom: 5,
+    paddingLeft: 10,
+  },
+  deleteAccountWarning: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  deleteAccountButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundSecondary,
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderPrimary,
+  },
+  cancelButtonText: {
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+  },
+  confirmDeleteButton: {
+    flex: 1,
+    backgroundColor: '#D32F2F',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  confirmDeleteButtonText: {
+    color: '#FFFFFF',
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
   },
 }); 

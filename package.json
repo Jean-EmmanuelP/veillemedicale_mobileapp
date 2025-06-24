@@ -28,6 +28,8 @@
     "expo-status-bar": "~2.2.3",
     "expo-video": "~2.1.9",
     "i18next": "^25.2.0",
+    "install": "^0.13.0",
+    "npm": "^11.4.2",
     "react": "19.0.0",
     "react-i18next": "^15.5.2",
     "react-native": "0.79.2",
@@ -39,6 +41,7 @@
     "react-native-screens": "~4.10.0",
     "react-native-tab-view": "^4.1.0",
     "react-native-url-polyfill": "^2.0.0",
+    "react-native-web": "^0.20.0",
     "react-native-webview": "^13.13.5",
     "react-redux": "^9.1.0",
     "redux-persist": "^6.0.0"

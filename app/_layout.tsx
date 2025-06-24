@@ -1,11 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from '../store';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
+import { setUser, setSession } from '../store/authSlice';
 import { ActivityIndicator, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 import 'react-native-url-polyfill/auto';
 
 // Import useFonts and the specific Roboto fonts we need
@@ -29,17 +31,74 @@ import {
 function NavigationLayout() {
   const segments = useSegments();
   const router = useRouter();
+  const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialisation de l'état d'authentification au démarrage
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          dispatch(setUser({
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.user_metadata.name || '',
+          }));
+          dispatch(setSession(session.access_token));
+        } else {
+          dispatch(setUser(null));
+          dispatch(setSession(null));
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        dispatch(setUser(null));
+        dispatch(setSession(null));
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        dispatch(setUser({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata.name || '',
+        }));
+        dispatch(setSession(session.access_token));
+      } else {
+        dispatch(setUser(null));
+        dispatch(setSession(null));
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [dispatch]);
 
   useEffect(() => {
+    if (!isInitialized) return;
+
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!user && !inAuthGroup) {
-      router.replace('/login');
+      router.replace('/(auth)');
     } else if (user && inAuthGroup) {
       router.replace('/(app)');
     }
-  }, [user, segments]);
+  }, [user, segments, isInitialized]);
+
+  if (!isInitialized) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -64,10 +123,6 @@ export default function RootLayout() {
     Roboto_500Medium_Italic,
     Roboto_700Bold_Italic,
     Roboto_900Black_Italic,
-    // Note: 'Roboto_200ExtraLight', 'Roboto_600SemiBold', 'Roboto_800ExtraBold' 
-    // are not standard exports from @expo-google-fonts/roboto.
-    // If you need these specific weights, you might need to find a different package
-    // or manually download and link those specific font files.
   });
 
   useEffect(() => {
@@ -77,7 +132,6 @@ export default function RootLayout() {
   }, [fontError]);
 
   if (!fontsLoaded && !fontError) {
-    // Potentially show a loading screen or an ActivityIndicator
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />

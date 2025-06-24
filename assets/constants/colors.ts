@@ -32,6 +32,8 @@ export const COLORS = {
   
   // States
   error: '#D32F2F',                   // Keep a distinct error color for usability
+  errorBackground: '#FFEBEE',         // Light red background for error states
+  errorText: '#D32F2F',               // Red text for errors
   success: '#388E3C',                 // Keep a distinct success color for usability
   disabled: '#BDBDBD',                // For disabled elements
 

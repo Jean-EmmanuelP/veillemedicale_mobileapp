@@ -1,4 +1,8 @@
 {
+  "cli": {
+    "appVersionSource": "local"
+  },
+
     "build": {
       "preview": {
         "ios": {
@@ -8,7 +12,8 @@
           "buildType": "apk"
         }
       },
-      "production": {},
+      "production": {
+      },
       "development": {
         "ios": {
           "simulator": true

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "my-app",
-    "slug": "my-app",
+    "name": "Sano",
+    "slug": "Sano",
     "scheme": "veillemedicale",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -23,7 +23,8 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.veillemedicale.myapp"
+      "bundleIdentifier": "com.veillemedicale.myapp",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -33,12 +34,13 @@
       "edgeToEdgeEnabled": true
     },
     "web": {
+      "output": "static",
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "extra": {
       "eas": {
-        "projectId": "6828268d-d5c4-428f-9bd9-49e9b91f9282"
+        "projectId": "f46fea7d-63bb-4778-b823-c976ff034048"
       }
     }
   }
