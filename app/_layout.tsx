@@ -8,6 +8,7 @@ import { RootState } from '../store';
 import { setUser, setSession } from '../store/authSlice';
 import { ActivityIndicator, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import NotificationService from '../services/NotificationService';
 import 'react-native-url-polyfill/auto';
 
 // Import useFonts and the specific Roboto fonts we need
@@ -48,6 +49,13 @@ function NavigationLayout() {
             name: session.user.user_metadata.name || '',
           }));
           dispatch(setSession(session.access_token));
+          
+          // Initialiser le service de notifications pour l'utilisateur connecté
+          try {
+            await NotificationService.getInstance().initialize(session.user.id);
+          } catch (error) {
+            console.error('Failed to initialize notifications:', error);
+          }
         } else {
           dispatch(setUser(null));
           dispatch(setSession(null));
@@ -63,7 +71,7 @@ function NavigationLayout() {
 
     initializeAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         dispatch(setUser({
           id: session.user.id,
@@ -71,9 +79,23 @@ function NavigationLayout() {
           name: session.user.user_metadata.name || '',
         }));
         dispatch(setSession(session.access_token));
+        
+        // Initialiser les notifications quand l'utilisateur se connecte
+        try {
+          await NotificationService.getInstance().initialize(session.user.id);
+        } catch (error) {
+          console.error('Failed to initialize notifications on auth change:', error);
+        }
       } else {
         dispatch(setUser(null));
         dispatch(setSession(null));
+        
+        // Annuler les notifications quand l'utilisateur se déconnecte
+        try {
+          await NotificationService.getInstance().cancelAllNotifications();
+        } catch (error) {
+          console.error('Failed to cancel notifications on logout:', error);
+        }
       }
     });
 

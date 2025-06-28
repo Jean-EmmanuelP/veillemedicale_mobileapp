@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../assets/constants/colors';
 import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
+import NotificationService from '../../services/NotificationService';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -59,6 +60,16 @@ export default function ProfileScreen() {
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+
+  // Ajouts pour le mode admin secret
+  const [adminClickCount, setAdminClickCount] = useState(0);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminAuthenticated, setAdminAuthenticated] = useState(false);
+  const [notifTitle, setNotifTitle] = useState('Notification admin');
+  const [notifBody, setNotifBody] = useState('Ceci est une notification envoyée à tous les utilisateurs.');
+  const [targetUserId, setTargetUserId] = useState('');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -105,6 +116,13 @@ export default function ProfileScreen() {
       return () => clearTimeout(timer);
     }
   }, [saveSuccess]);
+
+  // Reset admin click count après un délai pour éviter les clics espacés
+  useEffect(() => {
+    if (adminClickCount === 0) return;
+    const timeout = setTimeout(() => setAdminClickCount(0), 2000);
+    return () => clearTimeout(timeout);
+  }, [adminClickCount]);
 
   const handleLogout = async () => {
     try {
@@ -189,8 +207,27 @@ export default function ProfileScreen() {
         subscriptions,
         gradePreferences: selectedGrades,
       })).unwrap();
+
+      // Mettre à jour les préférences de notification
+      try {
+        await NotificationService.getInstance().updateNotificationPreferences(
+          user.id,
+          notificationFrequency as any
+        );
+      } catch (error) {
+        console.error('Failed to update notification preferences:', error);
+      }
     } catch (error) {
       Alert.alert('Erreur', 'Erreur lors de la mise à jour du profil');
+    }
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      await NotificationService.getInstance().sendTestNotification();
+      Alert.alert('Succès', 'Notification de test envoyée !');
+    } catch (error) {
+      Alert.alert('Erreur', 'Erreur lors de l\'envoi de la notification de test');
     }
   };
 
@@ -281,6 +318,72 @@ export default function ProfileScreen() {
     }
   ];
 
+  const handleAdminTitlePress = () => {
+    setAdminClickCount((prev) => {
+      if (prev + 1 >= 10) {
+        setShowAdminModal(true);
+        return 0;
+      }
+      return prev + 1;
+    });
+  };
+
+  const handleAdminPasswordSubmit = () => {
+    if (adminPassword === 'fleur321') {
+      setAdminAuthenticated(true);
+    } else {
+      Alert.alert('Erreur', 'Mot de passe incorrect');
+    }
+  };
+
+  const handleSendToAll = async () => {
+    setSending(true);
+    try {
+      // Récupérer tous les users
+      const { data: users, error } = await supabase.from('user_profiles').select('id');
+      if (error) throw error;
+      if (!users || users.length === 0) throw new Error('Aucun utilisateur trouvé');
+      let success = 0, fail = 0;
+      for (const u of users) {
+        try {
+          await NotificationService.getInstance().sendNotificationViaEdge(
+            u.id,
+            notifTitle,
+            notifBody,
+            { type: 'admin_broadcast' }
+          );
+          success++;
+        } catch (e) {
+          fail++;
+        }
+      }
+      Alert.alert('Succès', `Notifications envoyées à ${success} utilisateurs. ${fail > 0 ? fail + ' échecs.' : ''}`);
+    } catch (e) {
+      Alert.alert('Erreur', e.message || 'Erreur lors de l\'envoi');
+    }
+    setSending(false);
+  };
+
+  const handleSendToUser = async () => {
+    if (!targetUserId) {
+      Alert.alert('Erreur', 'Veuillez saisir un ID utilisateur');
+      return;
+    }
+    setSending(true);
+    try {
+      await NotificationService.getInstance().sendNotificationViaEdge(
+        targetUserId,
+        notifTitle,
+        notifBody,
+        { type: 'admin_targeted' }
+      );
+      Alert.alert('Succès', 'Notification envoyée à l\'utilisateur');
+    } catch (e) {
+      Alert.alert('Erreur', e.message || 'Erreur lors de l\'envoi');
+    }
+    setSending(false);
+  };
+
   const renderStatusModal = () => (
     <Modal
       visible={showStatusModal}
@@ -352,6 +455,13 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             )}
           />
+          {/* <TouchableOpacity
+            style={styles.testNotificationButton}
+            onPress={handleTestNotification}
+          >
+            <Ionicons name="notifications" size={16} color={COLORS.white} />
+            <Text style={styles.testNotificationButtonText}>Tester les notifications</Text>
+          </TouchableOpacity> */}
         </View>
       </View>
     </Modal>
@@ -416,6 +526,93 @@ export default function ProfileScreen() {
     </Modal>
   );
 
+  const renderAdminModal = () => (
+    <Modal
+      visible={showAdminModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => {
+        setShowAdminModal(false);
+        setAdminAuthenticated(false);
+        setAdminPassword('');
+      }}
+    >
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, width: '85%' }}>
+          {!adminAuthenticated ? (
+            <>
+              <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Accès administrateur</Text>
+              <TextInput
+                placeholder="Mot de passe admin"
+                secureTextEntry
+                value={adminPassword}
+                onChangeText={setAdminPassword}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 16 }}
+                autoFocus
+                onSubmitEditing={handleAdminPasswordSubmit}
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: '#1976D2', padding: 12, borderRadius: 8, alignItems: 'center' }}
+                onPress={handleAdminPasswordSubmit}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold' }}>Valider</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Envoyer une notification admin</Text>
+              <TextInput
+                placeholder="Titre de la notification"
+                value={notifTitle}
+                onChangeText={setNotifTitle}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 8 }}
+              />
+              <TextInput
+                placeholder="Message de la notification"
+                value={notifBody}
+                onChangeText={setNotifBody}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 16 }}
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: '#388E3C', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 16, opacity: sending ? 0.6 : 1 }}
+                onPress={handleSendToAll}
+                disabled={sending}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold' }}>Envoyer à tous les utilisateurs</Text>
+              </TouchableOpacity>
+              <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>Ou cibler un utilisateur :</Text>
+              <TextInput
+                placeholder="ID utilisateur cible"
+                value={targetUserId}
+                onChangeText={setTargetUserId}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 8 }}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: '#1976D2', padding: 12, borderRadius: 8, alignItems: 'center', opacity: sending ? 0.6 : 1 }}
+                onPress={handleSendToUser}
+                disabled={sending}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold' }}>Envoyer à cet utilisateur</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ marginTop: 16, alignItems: 'center' }}
+                onPress={() => {
+                  setShowAdminModal(false);
+                  setAdminAuthenticated(false);
+                  setAdminPassword('');
+                }}
+              >
+                <Text style={{ color: '#D32F2F', fontWeight: 'bold' }}>Fermer</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+
   if (loading && !profile) {
     return (
       <View style={styles.loadingContainer}>
@@ -427,7 +624,9 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Mon compte</Text>
+        <TouchableOpacity onPress={handleAdminTitlePress} activeOpacity={0.7}>
+          <Text style={styles.title}>Mon compte</Text>
+        </TouchableOpacity>
 
         {error && (
           <View style={styles.errorContainer}>
@@ -531,6 +730,14 @@ export default function ProfileScreen() {
               </Text>
               <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
             </TouchableOpacity>
+            
+            {/* <TouchableOpacity
+              style={styles.testNotificationButton}
+              onPress={handleTestNotification}
+            >
+              <Ionicons name="notifications" size={16} color={COLORS.white} />
+              <Text style={styles.testNotificationButtonText}>Tester les notifications</Text>
+            </TouchableOpacity> */}
           </View>
 
           <View style={styles.inputContainer}>
@@ -692,6 +899,7 @@ export default function ProfileScreen() {
       {renderStatusModal()}
       {renderNotificationModal()}
       {renderDeleteAccountModal()}
+      {renderAdminModal()}
     </SafeAreaView>
   );
 }
@@ -1084,5 +1292,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: FONT_SIZES.base,
     fontFamily: FONTS.sans.bold,
+  },
+  testNotificationButton: {
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  testNotificationButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    marginLeft: 8,
   },
 }); 
