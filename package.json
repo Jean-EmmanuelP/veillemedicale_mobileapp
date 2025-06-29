@@ -46,6 +46,7 @@
     "react-native-web": "^0.20.0",
     "react-native-webview": "^13.13.5",
     "react-redux": "^9.1.0",
+    "redux-devtools-expo-dev-plugin": "^2.0.0",
     "redux-persist": "^6.0.0"
   },
   "devDependencies": {
