@@ -29,7 +29,7 @@ export default function ArticleItem({
 }: ArticleItemProps) {
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[styles.container, article.is_recommandation && styles.recommandationBackground]}
       onPress={() => onPress(article)}
     >
       <View style={styles.content}>
@@ -172,4 +172,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontFamily: FONTS.sans.bold,
   } as TextStyle,
+  recommandationBackground: {
+    backgroundColor: '#FFF9C4', // Jaune pâle
+  },
 }); 

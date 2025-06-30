@@ -165,6 +165,8 @@ export const fetchArticles = createAsyncThunk<
         userId?: string | null; 
         searchTerm?: string | null; 
         subDiscipline?: string | null; 
+        onlyRecommendations?: boolean;
+        allowedGrades?: string[];
     }
 >(
   'articles/fetchArticles',
@@ -172,10 +174,12 @@ export const fetchArticles = createAsyncThunk<
     const rpcParams: any = {
       p_discipline_name: args.discipline === 'all' ? null : args.discipline,
       p_sub_discipline_name: args.subDiscipline,
-      p_offset: args.offset ?? 0, 
-      p_user_id: args.userId ?? null, 
-      p_filter_by_user_subs: args.filterByUserSubs ?? false, 
-      p_search_term: args.searchTerm ?? null, 
+      p_offset: args.offset ?? 0,
+      p_user_id: args.userId ?? null,
+      p_filter_by_user_subs: args.filterByUserSubs ?? false,
+      p_search_term: args.searchTerm ?? null,
+      p_only_recommendations: args.onlyRecommendations ?? false,
+      p_allowed_grades: args.allowedGrades ?? null,
     };
 
     // Log parameters just before the RPC call

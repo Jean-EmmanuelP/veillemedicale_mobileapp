@@ -17,4 +17,5 @@ export interface Article {
   is_thumbed_up: boolean;
   thumbs_up_count: number;
   is_article_of_the_day: boolean;
+  is_recommandation: boolean;
 } 

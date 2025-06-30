@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useNavigationContainerRef, useSegments } from 'expo-router';
+import { useReactNavigationDevTools } from '@dev-plugins/react-navigation';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from '../store';
@@ -132,6 +133,9 @@ function NavigationLayout() {
 
 // Composant racine qui fournit le Provider et charge les polices
 export default function RootLayout() {
+  const navigationRef = useNavigationContainerRef();
+  useReactNavigationDevTools(navigationRef as any);
+
   let [fontsLoaded, fontError] = useFonts({
     Roboto_100Thin,
     Roboto_300Light,

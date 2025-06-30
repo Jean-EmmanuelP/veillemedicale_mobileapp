@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Linking,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import { useFocusEffect } from '@react-navigation/native';
@@ -46,15 +47,31 @@ export default function MyArticlesScreen() {
     selectedDiscipline,
     selectedSubDiscipline,
     disciplines,
+    selectedGrade,
   } = useAppSelector((state) => state.articles);
   const { user } = useAppSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'articles' | 'recommandations'>('all');
+  const [offset, setOffset] = useState(0);
+
+  const allowedGrades = useMemo(() => {
+    if (!selectedGrade || selectedGrade === 'all') return null;
+    return [selectedGrade];
+  }, [selectedGrade]);
+
+  // Prépare les données filtrées selon le toggle
+  const filteredArticles = useMemo(() => {
+    if (filterType === 'all') return myArticles;
+    if (filterType === 'articles') return myArticles.filter(a => !a.is_recommandation);
+    if (filterType === 'recommandations') return myArticles.filter(a => a.is_recommandation);
+    return myArticles;
+  }, [myArticles, filterType]);
 
   const listData = useMemo((): MyListItem[] => {
     const data: MyListItem[] = [];
-    let articlesToList = [...myArticles]; // Use myArticles
+    let articlesToList = [...filteredArticles];
 
     if (articlesToList.length > 0 && articlesToList[0].is_article_of_the_day) {
       data.push("🔥 Article du jour");
@@ -62,14 +79,11 @@ export default function MyArticlesScreen() {
     }
 
     if (articlesToList.length > 0) {
-      // If AOTD was added, or if it wasn't but there are still articles,
-      // add the "previous articles" header.
-      // Only add if there are actual articles for this section.
       data.push("📖 Articles précédents");
       articlesToList.forEach(article => data.push(article));
     }
     return data;
-  }, [myArticles]);
+  }, [filteredArticles]);
 
   const stickyHeaderIndices = useMemo(() => 
     listData
@@ -87,32 +101,35 @@ export default function MyArticlesScreen() {
   );
 
   useEffect(() => {
-    if (user?.id && disciplines.length === 0) dispatch(fetchUserSubscriptionStructure(user.id));
-    const shouldLoad = selectedDiscipline === 'all' || (selectedDiscipline !== 'all' && selectedSubDiscipline !== null);
-    if (user?.id && shouldLoad && (selectedDiscipline === 'all' || disciplines.length > 0)) {
-      loadArticles(true);
-    }
-  }, [selectedDiscipline, selectedSubDiscipline, user?.id, disciplines.length, dispatch]);
+    setOffset(0);
+    loadArticles(true, 0, filterType, allowedGrades);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterType, selectedDiscipline, selectedSubDiscipline, allowedGrades]);
 
-  const loadArticles = async (isRefreshing = false) => {
-    if (!user?.id || (loadingMyArticles && !isRefreshing)) return;
-    try {
-      const currentOffset = isRefreshing ? 0 : myArticles.length;
-      await dispatch(fetchArticles({
-        discipline: selectedDiscipline, 
-        subDiscipline: selectedSubDiscipline === 'all' ? null : selectedSubDiscipline,
-        offset: currentOffset, 
-        refresh: isRefreshing,
-        userId: user.id, 
-        filterByUserSubs: true 
-      })).unwrap();
-    } catch (error) { console.error('Error loading my articles:', error); }
+  const loadArticles = async (isRefreshing = false, customOffset?: number, customFilterType?: typeof filterType, customAllowedGrades: string[] | null = allowedGrades) => {
+    const currentFilter = customFilterType ?? filterType;
+    const offsetToUse = isRefreshing ? 0 : (customOffset ?? offset);
+    await dispatch(fetchArticles({
+      discipline: selectedDiscipline,
+      subDiscipline: selectedSubDiscipline === 'all' ? null : selectedSubDiscipline,
+      offset: offsetToUse,
+      refresh: isRefreshing,
+      userId: user?.id,
+      filterByUserSubs: true,
+      onlyRecommendations: currentFilter === 'recommandations',
+      allowedGrades: customAllowedGrades ?? undefined,
+    })).unwrap();
+    if (!isRefreshing) setOffset(offsetToUse + 10);
   };
 
   const handleDisciplineChange = (newDisciplineName: string) => dispatch(setSelectedDiscipline(newDisciplineName));
   const handleSubDisciplineChange = (newSubDisciplineName: string | null) => dispatch(setSelectedSubDiscipline(newSubDisciplineName));
   const handleRefresh = async () => { setRefreshing(true); if (user?.id) await loadArticles(true); setRefreshing(false); };
-  const handleLoadMore = () => { if (!loadingMyArticles && hasMoreMyArticles && user?.id) loadArticles(); };
+  const handleLoadMore = () => {
+    if (!loadingMyArticles && hasMoreMyArticles && user?.id) {
+      loadArticles(false, offset, filterType, allowedGrades);
+    }
+  };
   const handleOpenLink = async (link: string) => { try { await Linking.openURL(link); } catch (e) { console.error('Error opening link:', e); } };
   const handleLikePress = (article: Article) => { if (!user?.id) return; dispatch(toggleLike({ articleId: article.article_id, userId: user.id })); };
   const handleReadPress = (article: Article) => { if (!user?.id) return; dispatch(toggleRead({ articleId: article.article_id, userId: user.id })); };
@@ -136,15 +153,36 @@ export default function MyArticlesScreen() {
       <View style={styles.fixedHeader}>
         <Text style={styles.fixedHeaderText}>Mes Articles</Text>
       </View>
+      {/* Toggle filter */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginVertical: 10 }}>
+        <TouchableOpacity
+          style={[styles.toggleButton, filterType === 'all' && styles.toggleButtonActive]}
+          onPress={() => setFilterType('all')}
+        >
+          <Text style={[styles.toggleButtonText, filterType === 'all' && styles.toggleButtonTextActive]}>Tous</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.toggleButton, filterType === 'articles' && styles.toggleButtonActive]}
+          onPress={() => setFilterType('articles')}
+        >
+          <Text style={[styles.toggleButtonText, filterType === 'articles' && styles.toggleButtonTextActive]}>Articles</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.toggleButton, filterType === 'recommandations' && styles.toggleButtonActive]}
+          onPress={() => setFilterType('recommandations')}
+        >
+          <Text style={[styles.toggleButtonText, filterType === 'recommandations' && styles.toggleButtonTextActive]}>Recommandations</Text>
+        </TouchableOpacity>
+      </View>
       <FilterHeader
         disciplines={disciplineFilterOptions}
         subDisciplines={subDisciplineFilterOptions}
         selectedDiscipline={selectedDiscipline}
         selectedSubDiscipline={selectedSubDiscipline}
-        selectedGrade={null}
+        selectedGrade={selectedGrade}
         onDisciplineChange={handleDisciplineChange}
         onSubDisciplineChange={handleSubDisciplineChange}
-        onGradeChange={() => {}}
+        onGradeChange={(newGrade) => {}}
         loadingSubDisciplines={false}
       />
       
@@ -238,4 +276,24 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontWeight: '600',
   } as TextStyle,
+  toggleButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderPrimary,
+    marginHorizontal: 4,
+    backgroundColor: COLORS.backgroundPrimary,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#FFF9C4', // Jaune pâle pour l'actif
+    borderColor: '#FFD600',
+  },
+  toggleButtonText: {
+    color: COLORS.textSecondary,
+    fontWeight: 'bold',
+  },
+  toggleButtonTextActive: {
+    color: COLORS.textPrimary,
+  },
 }); 

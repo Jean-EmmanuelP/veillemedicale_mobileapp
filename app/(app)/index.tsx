@@ -10,6 +10,7 @@ import {
   TextStyle,
   RefreshControl,
   Linking,
+  TouchableOpacity,
 } from 'react-native';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import { useFocusEffect } from '@react-navigation/native';
@@ -56,11 +57,26 @@ export default function ArticlesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'articles' | 'recommandations'>('all');
+  const [offset, setOffset] = useState(0);
+
+  const allowedGrades = useMemo(() => {
+    if (!selectedGrade || selectedGrade === 'all') return null;
+    return [selectedGrade];
+  }, [selectedGrade]);
+
+  // Prépare les données filtrées selon le toggle
+  const filteredItems = useMemo(() => {
+    if (filterType === 'all') return items;
+    if (filterType === 'articles') return items.filter(a => !a.is_recommandation);
+    if (filterType === 'recommandations') return items.filter(a => a.is_recommandation);
+    return items;
+  }, [items, filterType]);
 
   // Prepare data for FlashList (flattened with headers)
   const listData = useMemo((): ListItem[] => {
     const data: ListItem[] = [];
-    let articlesToList = [...items];
+    let articlesToList = [...filteredItems];
 
     if (articlesToList.length > 0 && articlesToList[0].is_article_of_the_day) {
       data.push("🔥 Article du jour");
@@ -70,11 +86,11 @@ export default function ArticlesScreen() {
     if (articlesToList.length > 0) {
       if (data.length > 0) { // If AOTD was added, then these are "previous"
         data.push("📖 Articles précédents");
-      } // If no AOTD, the first header might implicitly be considered general, or add one if needed
+      }
       articlesToList.forEach(article => data.push(article));
     }
     return data;
-  }, [items]);
+  }, [filteredItems]);
 
   // Calculate sticky header indices for FlashList
   const stickyHeaderIndices = useMemo(() => 
@@ -95,30 +111,25 @@ export default function ArticlesScreen() {
   );
 
   useEffect(() => {
-    const shouldLoad = 
-      selectedDiscipline === 'all' || 
-      (selectedDiscipline !== 'all' && selectedSubDiscipline !== null);
+    setOffset(0);
+    loadArticles(true, 0, filterType, allowedGrades);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterType, selectedDiscipline, selectedSubDiscipline, allowedGrades]);
 
-    if (shouldLoad && (selectedDiscipline === 'all' || allDisciplines.length > 0)) {
-      loadArticles(true);
-    }
-  }, [selectedDiscipline, selectedSubDiscipline, allDisciplines.length, dispatch]);
-
-  const loadArticles = async (isRefreshing = false) => {
-    if (loadingItems && !isRefreshing) return;
-    try {
-      const currentOffset = isRefreshing ? 0 : items.length;
-      await dispatch(fetchArticles({
-        discipline: selectedDiscipline,
-        subDiscipline: selectedSubDiscipline === 'all' ? null : selectedSubDiscipline,
-        offset: currentOffset,
-        refresh: isRefreshing,
-        userId: user?.id,
-        filterByUserSubs: false
-      })).unwrap();
-    } catch (error) {
-      console.error('Error loading articles:', error);
-    }
+  const loadArticles = async (isRefreshing = false, customOffset?: number, customFilterType?: typeof filterType, customAllowedGrades: string[] | null = allowedGrades) => {
+    const currentFilter = customFilterType ?? filterType;
+    const offsetToUse = isRefreshing ? 0 : (customOffset ?? offset);
+    await dispatch(fetchArticles({
+      discipline: selectedDiscipline,
+      subDiscipline: selectedSubDiscipline === 'all' ? null : selectedSubDiscipline,
+      offset: offsetToUse,
+      refresh: isRefreshing,
+      userId: user?.id,
+      filterByUserSubs: false,
+      onlyRecommendations: currentFilter === 'recommandations',
+      allowedGrades: customAllowedGrades ?? undefined,
+    })).unwrap();
+    if (!isRefreshing) setOffset(offsetToUse + 10);
   };
 
   const handleRefresh = async () => {
@@ -129,7 +140,7 @@ export default function ArticlesScreen() {
 
   const handleLoadMore = () => {
     if (!loadingItems && hasMoreItems) {
-      loadArticles();
+      loadArticles(false, offset, filterType, allowedGrades);
     }
   };
 
@@ -215,6 +226,28 @@ export default function ArticlesScreen() {
         onGradeChange={handleGradeChange}
         loadingSubDisciplines={loadingSubDisciplinesForFilter}
       />
+      
+      {/* Toggle filter */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginVertical: 10 }}>
+        <TouchableOpacity
+          style={[styles.toggleButton, filterType === 'all' && styles.toggleButtonActive]}
+          onPress={() => setFilterType('all')}
+        >
+          <Text style={[styles.toggleButtonText, filterType === 'all' && styles.toggleButtonTextActive]}>Tous</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.toggleButton, filterType === 'articles' && styles.toggleButtonActive]}
+          onPress={() => setFilterType('articles')}
+        >
+          <Text style={[styles.toggleButtonText, filterType === 'articles' && styles.toggleButtonTextActive]}>Articles</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.toggleButton, filterType === 'recommandations' && styles.toggleButtonActive]}
+          onPress={() => setFilterType('recommandations')}
+        >
+          <Text style={[styles.toggleButtonText, filterType === 'recommandations' && styles.toggleButtonTextActive]}>Recommandations</Text>
+        </TouchableOpacity>
+      </View>
       
       <FlashList
         data={listData}
@@ -414,4 +447,24 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontWeight: '600',
   } as TextStyle,
+  toggleButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderPrimary,
+    marginHorizontal: 4,
+    backgroundColor: COLORS.backgroundPrimary,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#FFF9C4', // Jaune pâle pour l'actif
+    borderColor: '#FFD600',
+  },
+  toggleButtonText: {
+    color: COLORS.textSecondary,
+    fontWeight: 'bold',
+  },
+  toggleButtonTextActive: {
+    color: COLORS.textPrimary,
+  },
 }); 
