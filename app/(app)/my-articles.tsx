@@ -55,6 +55,7 @@ export default function MyArticlesScreen() {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'articles' | 'recommandations'>('all');
   const [offset, setOffset] = useState(0);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const allowedGrades = useMemo(() => {
     if (!selectedGrade || selectedGrade === 'all') return null;
@@ -94,17 +95,21 @@ export default function MyArticlesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      dispatch(resetFiltersToAll());
       if (user?.id) dispatch(fetchUserSubscriptionStructure(user.id));
-      return () => { /* dispatch(clearMyArticles()); // Handled by resetFiltersToAll */ };
+      return () => {};
     }, [dispatch, user?.id])
   );
 
   useEffect(() => {
     setOffset(0);
-    loadArticles(true, 0, filterType, allowedGrades);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setHasLoadedOnce(false);
   }, [filterType, selectedDiscipline, selectedSubDiscipline, allowedGrades]);
+
+  useEffect(() => {
+    if (!hasLoadedOnce && user?.id) {
+      loadArticles(true, 0, filterType, allowedGrades).then(() => setHasLoadedOnce(true));
+    }
+  }, [hasLoadedOnce, filterType, selectedDiscipline, selectedSubDiscipline, allowedGrades, user?.id]);
 
   const loadArticles = async (isRefreshing = false, customOffset?: number, customFilterType?: typeof filterType, customAllowedGrades: string[] | null = allowedGrades) => {
     const currentFilter = customFilterType ?? filterType;
@@ -124,7 +129,12 @@ export default function MyArticlesScreen() {
 
   const handleDisciplineChange = (newDisciplineName: string) => dispatch(setSelectedDiscipline(newDisciplineName));
   const handleSubDisciplineChange = (newSubDisciplineName: string | null) => dispatch(setSelectedSubDiscipline(newSubDisciplineName));
-  const handleRefresh = async () => { setRefreshing(true); if (user?.id) await loadArticles(true); setRefreshing(false); };
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setHasLoadedOnce(false);
+    if (user?.id) await loadArticles(true);
+    setRefreshing(false);
+  };
   const handleLoadMore = () => {
     if (!loadingMyArticles && hasMoreMyArticles && user?.id) {
       loadArticles(false, offset, filterType, allowedGrades);

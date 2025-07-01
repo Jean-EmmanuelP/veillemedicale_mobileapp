@@ -59,6 +59,7 @@ export default function ArticlesScreen() {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'articles' | 'recommandations'>('all');
   const [offset, setOffset] = useState(0);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const allowedGrades = useMemo(() => {
     if (!selectedGrade || selectedGrade === 'all') return null;
@@ -102,19 +103,21 @@ export default function ArticlesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      dispatch(resetFiltersToAll());
       dispatch(fetchAllDisciplinesStructure());
-      return () => {
-        dispatch(clearArticles());
-      };
+      return () => {};
     }, [dispatch])
   );
 
   useEffect(() => {
     setOffset(0);
-    loadArticles(true, 0, filterType, allowedGrades);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setHasLoadedOnce(false);
   }, [filterType, selectedDiscipline, selectedSubDiscipline, allowedGrades]);
+
+  useEffect(() => {
+    if (!hasLoadedOnce) {
+      loadArticles(true, 0, filterType, allowedGrades).then(() => setHasLoadedOnce(true));
+    }
+  }, [hasLoadedOnce, filterType, selectedDiscipline, selectedSubDiscipline, allowedGrades]);
 
   const loadArticles = async (isRefreshing = false, customOffset?: number, customFilterType?: typeof filterType, customAllowedGrades: string[] | null = allowedGrades) => {
     const currentFilter = customFilterType ?? filterType;
@@ -134,6 +137,7 @@ export default function ArticlesScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    setHasLoadedOnce(false);
     await loadArticles(true);
     setRefreshing(false);
   };
