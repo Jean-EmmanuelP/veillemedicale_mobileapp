@@ -42,6 +42,8 @@ interface ArticlesState {
   errorSubDisciplinesForFilter: string | null;
 
   savedArticleIds: number[];
+
+  likedArticles: Article[];
 }
 
 const initialState: ArticlesState = {
@@ -66,6 +68,8 @@ const initialState: ArticlesState = {
   loadingSubDisciplinesForFilter: false,
   errorSubDisciplinesForFilter: null,
   savedArticleIds: [],
+
+  likedArticles: [],
 };
 
 // Fetches only disciplines/sub-disciplines user is subscribed to
@@ -266,6 +270,24 @@ export const toggleThumbsUp = createAsyncThunk(
   }
 );
 
+export const fetchLikedArticles = createAsyncThunk<
+  Article[],
+  { userId: string; discipline?: string | null; subDiscipline?: string | null; offset?: number; searchTerm?: string | null }
+>(
+  'articles/fetchLikedArticles',
+  async ({ userId, discipline = null, subDiscipline = null, offset = 0, searchTerm = null }) => {
+    const { data, error } = await supabase.rpc('get_liked_articles', {
+      p_user_id: userId,
+      p_discipline_name: discipline,
+      p_sub_discipline_name: subDiscipline,
+      p_offset: offset,
+      p_search_term: searchTerm,
+    });
+    if (error) throw error;
+    return data || [];
+  }
+);
+
 const articlesSlice = createSlice({
   name: 'articles',
   initialState,
@@ -419,6 +441,9 @@ const articlesSlice = createSlice({
         const update = (a: Article) => a.article_id === articleId ? { ...a, is_thumbed_up: isThumbedUp, thumbs_up_count: thumbsUpCount } : a;
         state.items = state.items.map(update);
         state.myArticles = state.myArticles.map(update);
+      })
+      .addCase(fetchLikedArticles.fulfilled, (state, action) => {
+        state.likedArticles = action.payload;
       });
   },
 });

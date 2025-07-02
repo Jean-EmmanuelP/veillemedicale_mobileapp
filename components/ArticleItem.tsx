@@ -7,6 +7,7 @@ import {
   ViewStyle,
   TextStyle,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Article } from '../types';
@@ -14,11 +15,14 @@ import { FONTS, FONT_SIZES, LINE_HEIGHTS } from '../assets/constants/fonts';
 import { COLORS } from '../assets/constants/colors';
 
 interface ArticleItemProps {
-  article: Article;
+  article: Article & { localUri?: string };
   onPress: (article: Article) => void;
   onLinkPress: (link: string) => void;
   onLikePress: (article: Article) => void;
   onThumbsUpPress: (article: Article) => void;
+  onToggleDownloadPress?: (article: Article) => void;
+  isDownloaded?: boolean;
+  isDownloadLoading?: boolean;
 }
 
 export default function ArticleItem({
@@ -26,6 +30,9 @@ export default function ArticleItem({
   onPress,
   onLikePress,
   onThumbsUpPress,
+  onToggleDownloadPress,
+  isDownloaded,
+  isDownloadLoading,
 }: ArticleItemProps) {
   return (
     <TouchableOpacity
@@ -79,9 +86,23 @@ export default function ArticleItem({
               color={article.is_thumbed_up ? COLORS.iconPrimary : COLORS.iconSecondary}
             />
             <Text style={[styles.actionText, article.is_thumbed_up && styles.actionTextActive]}>
-              {article.thumbs_up_count.toLocaleString()}
+              {(article.thumbs_up_count ?? 0).toLocaleString()}
             </Text>
           </TouchableOpacity>
+
+          {onToggleDownloadPress && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => onToggleDownloadPress(article)}
+              disabled={isDownloadLoading}
+            >
+              {isDownloadLoading ? (
+                <ActivityIndicator size={16} color={isDownloaded ? COLORS.iconPrimary : COLORS.iconSecondary} />
+              ) : (
+                <Ionicons name={isDownloaded ? "download" : "download-outline"} size={16} color={isDownloaded ? COLORS.iconPrimary : COLORS.iconSecondary} />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </TouchableOpacity>

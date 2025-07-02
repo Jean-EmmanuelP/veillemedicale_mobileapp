@@ -33,6 +33,8 @@ import ArticleModal from '../../components/ArticleModal';
 import { Article } from '../../types';
 import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
 import { COLORS } from '../../assets/constants/colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 
 // Define a union type for items in FlashList: string for headers, Article for items
 type MyListItem = string | Article;
@@ -56,6 +58,9 @@ export default function MyArticlesScreen() {
   const [filterType, setFilterType] = useState<'all' | 'articles' | 'recommandations'>('all');
   const [offset, setOffset] = useState(0);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [downloadedArticles, setDownloadedArticles] = useState<any[]>([]);
+  const [downloadLoadingIds, setDownloadLoadingIds] = useState<number[]>([]);
+  const [downloadedVersion, setDownloadedVersion] = useState(0);
 
   const allowedGrades = useMemo(() => {
     if (!selectedGrade || selectedGrade === 'all') return null;
@@ -96,6 +101,9 @@ export default function MyArticlesScreen() {
   useFocusEffect(
     useCallback(() => {
       if (user?.id) dispatch(fetchUserSubscriptionStructure(user.id));
+      AsyncStorage.getItem('downloadedArticles').then(data => {
+        setDownloadedArticles(data ? JSON.parse(data) : []);
+      });
       return () => {};
     }, [dispatch, user?.id])
   );
@@ -144,6 +152,27 @@ export default function MyArticlesScreen() {
   const handleLikePress = (article: Article) => { if (!user?.id) return; dispatch(toggleLike({ articleId: article.article_id, userId: user.id })); };
   const handleReadPress = (article: Article) => { if (!user?.id) return; dispatch(toggleRead({ articleId: article.article_id, userId: user.id })); };
   const handleThumbsUpPress = (article: Article) => { if (!user?.id) return; dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id })); };
+  const handleToggleDownload = async (article: Article) => {
+    setDownloadLoadingIds(ids => [...ids, article.article_id]);
+    try {
+      const data = await AsyncStorage.getItem('downloadedArticles');
+      let downloaded = data ? JSON.parse(data) : [];
+      const isDownloaded = downloaded.some((a: any) => a.article_id === article.article_id);
+      if (isDownloaded) {
+        downloaded = downloaded.filter((a: any) => a.article_id !== article.article_id);
+      } else {
+        downloaded.push(article);
+      }
+      await AsyncStorage.setItem('downloadedArticles', JSON.stringify(downloaded));
+      const refreshed = await AsyncStorage.getItem('downloadedArticles');
+      setDownloadedArticles(refreshed ? [...JSON.parse(refreshed)] : []);
+      setDownloadedVersion(v => v + 1);
+    } catch (e) {
+      console.error('Erreur lors du toggle téléchargement', e);
+    } finally {
+      setDownloadLoadingIds(ids => ids.filter(id => id !== article.article_id));
+    }
+  };
   const openArticleModal = (article: Article) => { setSelectedArticle(article); setModalVisible(true); };
   const closeArticleModal = () => { setModalVisible(false); setSelectedArticle(null); };
 
@@ -209,6 +238,9 @@ export default function MyArticlesScreen() {
                 onLinkPress={handleOpenLink}
                 onLikePress={handleLikePress}
                 onThumbsUpPress={handleThumbsUpPress}
+                onToggleDownloadPress={handleToggleDownload}
+                isDownloaded={downloadedArticles.some((a: any) => a.article_id === (item as Article).article_id)}
+                isDownloadLoading={downloadLoadingIds.includes((item as Article).article_id)}
               />
             );
           }
@@ -216,13 +248,14 @@ export default function MyArticlesScreen() {
         getItemType={(item: MyListItem) => typeof item === 'string' ? 'sectionHeader' : 'row'}
         stickyHeaderIndices={stickyHeaderIndices}
         estimatedItemSize={150}
-        keyExtractor={(item, index) => typeof item === 'string' ? item + index : (item as Article).article_id.toString() + index}
+        keyExtractor={(item) => typeof item === 'string' ? item : (item as Article).article_id.toString()}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         ListFooterComponent={loadingMyArticles && !refreshing ? <ActivityIndicator size="large" color={COLORS.iconPrimary} style={styles.loader} /> : null}
         ListEmptyComponent={!loadingMyArticles && !refreshing && myArticles.length === 0 ?
           <View style={styles.emptyContainer}><Text style={styles.emptyText}>Aucun article trouvé dans votre veille.</Text></View> : null}
+        extraData={downloadedVersion}
       />
 
       <ArticleModal visible={modalVisible} article={selectedArticle} onClose={closeArticleModal} />

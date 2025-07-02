@@ -12,6 +12,7 @@ import {
   Animated,
   Dimensions,
   SafeAreaView,
+  Alert,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { WebView } from 'react-native-webview';
@@ -19,6 +20,7 @@ import { Article } from "../types";
 import { FONTS, FONT_SIZES, LINE_HEIGHTS } from "../assets/constants/fonts";
 import { SCREEN_WIDTH } from "../assets/constants/dimensions";
 import { COLORS } from "../assets/constants/colors";
+import * as Network from 'expo-network';
 
 interface ArticleModalProps {
   visible: boolean;
@@ -42,8 +44,13 @@ export default function ArticleModal({
 
   if (!article) return null;
 
-  const handleOpenOriginalArticle = () => {
+  const handleOpenOriginalArticle = async () => {
     if (article && article.link) {
+      const state = await Network.getNetworkStateAsync();
+      if (!state.isConnected) {
+        Alert.alert('Pas de connexion', 'Ouvre le lien plus tard, pas de connexion actuellement.');
+        return;
+      }
       setWebViewUrl(article.link);
       setShowWebView(true);
       Animated.timing(slideAnim, {

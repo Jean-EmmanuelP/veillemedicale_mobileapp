@@ -75,6 +75,15 @@ export default function AppLayout() {
           tabBarIcon: ({ color }) => <UserAvatar color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="favorites"
+        options={{
+          title: 'Favoris',
+          tabBarIcon: ({ color }) => (
+            <Text style={{fontSize: 24, color}}>{'❤️'}</Text>
+          ),
+        }}
+      />
     </Tabs>
   );
 }

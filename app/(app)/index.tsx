@@ -35,6 +35,8 @@ import { Article } from '../../types';
 import { FONTS, FONT_SIZES, LINE_HEIGHTS } from '../../assets/constants/fonts';
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from '../../assets/constants/dimensions';
 import { COLORS } from '../../assets/constants/colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 
 // Define a union type for items in FlashList: string for headers, Article for items
 type ListItem = string | Article;
@@ -60,6 +62,9 @@ export default function ArticlesScreen() {
   const [filterType, setFilterType] = useState<'all' | 'articles' | 'recommandations'>('all');
   const [offset, setOffset] = useState(0);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [downloadedArticles, setDownloadedArticles] = useState<any[]>([]);
+  const [downloadLoadingIds, setDownloadLoadingIds] = useState<number[]>([]);
+  const [downloadedVersion, setDownloadedVersion] = useState(0);
 
   const allowedGrades = useMemo(() => {
     if (!selectedGrade || selectedGrade === 'all') return null;
@@ -104,6 +109,9 @@ export default function ArticlesScreen() {
   useFocusEffect(
     useCallback(() => {
       dispatch(fetchAllDisciplinesStructure());
+      AsyncStorage.getItem('downloadedArticles').then(data => {
+        setDownloadedArticles(data ? JSON.parse(data) : []);
+      });
       return () => {};
     }, [dispatch])
   );
@@ -173,6 +181,28 @@ export default function ArticlesScreen() {
       return;
     }
     dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id }));
+  };
+
+  const handleToggleDownload = async (article: Article) => {
+    setDownloadLoadingIds(ids => [...ids, article.article_id]);
+    try {
+      const data = await AsyncStorage.getItem('downloadedArticles');
+      let downloaded = data ? JSON.parse(data) : [];
+      const isDownloaded = downloaded.some((a: any) => a.article_id === article.article_id);
+      if (isDownloaded) {
+        downloaded = downloaded.filter((a: any) => a.article_id !== article.article_id);
+      } else {
+        downloaded.push(article);
+      }
+      await AsyncStorage.setItem('downloadedArticles', JSON.stringify(downloaded));
+      const refreshed = await AsyncStorage.getItem('downloadedArticles');
+      setDownloadedArticles(refreshed ? [...JSON.parse(refreshed)] : []);
+      setDownloadedVersion(v => v + 1);
+    } catch (e) {
+      console.error('Erreur lors du toggle téléchargement', e);
+    } finally {
+      setDownloadLoadingIds(ids => ids.filter(id => id !== article.article_id));
+    }
   };
 
   const openArticleModal = (article: Article) => {
@@ -263,11 +293,14 @@ export default function ArticlesScreen() {
             // Render article item
             return (
               <ArticleItem
-                article={item as Article} // Cast item to Article
+                article={item as Article}
                 onPress={openArticleModal}
                 onLinkPress={handleOpenLink}
                 onLikePress={handleLikePress}
                 onThumbsUpPress={handleThumbsUpPress}
+                onToggleDownloadPress={handleToggleDownload}
+                isDownloaded={downloadedArticles.some((a: any) => a.article_id === (item as Article).article_id)}
+                isDownloadLoading={downloadLoadingIds.includes((item as Article).article_id)}
               />
             );
           }
@@ -277,10 +310,7 @@ export default function ArticlesScreen() {
         }}
         stickyHeaderIndices={stickyHeaderIndices}
         estimatedItemSize={150} // Provide an estimated item size for FlashList performance
-        keyExtractor={(item, index) => { // More robust key extractor
-          if (typeof item === 'string') return item + index; // Header key
-          return (item as Article).article_id.toString() + index; // Article key
-        }}
+        keyExtractor={(item) => typeof item === 'string' ? item : (item as Article).article_id.toString()}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         refreshControl={
@@ -298,6 +328,7 @@ export default function ArticlesScreen() {
             </View>
           ) : null
         }
+        extraData={downloadedVersion}
       />
 
       <ArticleModal
