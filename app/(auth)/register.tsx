@@ -58,19 +58,32 @@ export default function RegisterScreen() {
   const blurOpacity = React.useRef(new Animated.Value(0)).current;
   const [emailError, setEmailError] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
+  const emailErrorOpacity = React.useRef(new Animated.Value(0)).current;
+  const [showEmailError, setShowEmailError] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordTouched, setPasswordTouched] = useState(false);
+  const passwordErrorOpacity = React.useRef(new Animated.Value(0)).current;
+  const [showPasswordError, setShowPasswordError] = useState(false);
+  const isPasswordValid = password.length >= 6;
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email);
 
   React.useEffect(() => {
     if (!emailTouched) return;
+    let timeout: ReturnType<typeof setTimeout>;
     if (!email) {
       setEmailError("");
     } else if (!isEmailValid) {
-      setEmailError("L'adresse email saisie est invalide.\nexemple : nom@domaine.fr");
+      timeout = setTimeout(() => {
+        setEmailError(
+          "L'adresse email saisie est invalide.\nexemple : nom@domaine.fr"
+        );
+      }, 500);
     } else {
       setEmailError("");
     }
+    return () => clearTimeout(timeout);
   }, [email, emailTouched]);
 
   React.useEffect(() => {
@@ -117,6 +130,55 @@ export default function RegisterScreen() {
       blurOpacity.setValue(0); // disparition instantanée
     }
   }, [showBlur, keyboardOpen]);
+
+  React.useEffect(() => {
+    if (emailError) {
+      setShowEmailError(true);
+      Animated.timing(emailErrorOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(emailErrorOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setShowEmailError(false));
+    }
+  }, [emailError]);
+
+  React.useEffect(() => {
+    if (!passwordTouched) return;
+    let timeout: ReturnType<typeof setTimeout>;
+    if (!password) {
+      setPasswordError("");
+    } else if (!isPasswordValid) {
+      timeout = setTimeout(() => {
+        setPasswordError("Le mot de passe doit contenir au moins 6 caractères.");
+      }, 500);
+    } else {
+      setPasswordError("");
+    }
+    return () => clearTimeout(timeout);
+  }, [password, passwordTouched]);
+
+  React.useEffect(() => {
+    if (passwordError) {
+      setShowPasswordError(true);
+      Animated.timing(passwordErrorOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(passwordErrorOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setShowPasswordError(false));
+    }
+  }, [passwordError]);
 
   const passwordFade = passwordAnim.interpolate({
     inputRange: [0, 1],
@@ -234,7 +296,7 @@ export default function RegisterScreen() {
       style={{
         flex: 1,
         flexDirection: "column-reverse",
-        backgroundColor: "blue",
+        backgroundColor: "#161618",
         paddingBottom: Dimensions.get("window").height * 0.2,
       }}
     >
@@ -268,10 +330,15 @@ export default function RegisterScreen() {
               Keyboard.dismiss();
             }}
           >
-            <Animated.View style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
+            <Animated.View
+              style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
               pointerEvents={showBlur ? "auto" : "none"}
             >
-              <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView
+                intensity={40}
+                tint="dark"
+                style={StyleSheet.absoluteFill}
+              />
             </Animated.View>
           </TouchableOpacity>
         )}
@@ -286,147 +353,285 @@ export default function RegisterScreen() {
       </View>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={20}
+        // keyboardVerticalOffset={20}
       >
-        <View style={styles.fixedInputContainer}>
-          <View style={styles.inputGroupRow}>
-            {step === 1 && (
-              <>
-                <View style={{ width: "100%", height: 44, backgroundColor: "yellow", position: "relative", overflow: "visible", flexDirection: "row", alignItems: "center", gap: Dimensions.get("window").width * 0.04 }}>
-                  <TextInput
-                    style={[
-                      styles.inputBig,
-                      {
-                        height: "100%",
-                        borderWidth: 1,
-                        borderColor: !emailTouched || !email ? "#a3a3a3" : emailError ? "#ff6b6b" : "#4CAF50",
-                        color: "#fff",
-                        backgroundColor: "#111",
-                        paddingRight: 90,
-                        paddingLeft: 20,
-                        fontSize: 17,
-                        borderRadius: 22,
-                        paddingVertical: 0,
-                        flex: 1,
-                      },
-                    ]}
-                    placeholder="adresse email"
-                    placeholderTextColor="#888"
-                    value={email}
-                    onChangeText={text => {
-                      setEmail(text);
-                      setEmailTouched(true);
-                    }}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoFocus
-                    returnKeyType="next"
-                    onPressIn={() => setShowBlur(true)}
-                    onSubmitEditing={() => {
-                      if (isEmailValid) {
-                        setShowBlur(false);
-                        handleNext();
-                      } else {
-                        setEmailTouched(true);
-                      }
-                    }}
-                  />
-                  {/* Bouton clear (croix) en absolute à droite dans le champ */}
-                  {email.length > 0 && (
-                    <TouchableOpacity
-                      style={{ position: "absolute", right: 54, top: 0, bottom: 0, justifyContent: "center", alignItems: "center", width: 44, height: 44, zIndex: 2 }}
-                      onPress={() => setEmail("")}
-                    >
-                      <Ionicons name="close" size={22} color="#888" />
-                    </TouchableOpacity>
-                  )}
-                  {/* Bouton flèche dans un cercle, à droite */}
-                  <TouchableOpacity
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 22,
-                      backgroundColor: "#111",
-                      borderWidth: 1,
-                      borderColor: !emailTouched || !email ? "#a3a3a3" : emailError ? "#ff6b6b" : "#4CAF50",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      opacity: isEmailValid ? 1 : 0.5,
-                      marginLeft: 2,
-                    }}
-                    onPress={() => {
-                      if (isEmailValid) {
-                        setShowBlur(false);
-                        handleNext();
-                      } else {
-                        setEmailTouched(true);
-                      }
-                    }}
-                    disabled={!isEmailValid}
-                  >
-                    <Ionicons name="arrow-forward" size={22} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-                {/* Message d'erreur */}
-                {!!emailError && (
-                  <View style={{ marginTop: 10, marginBottom: 0, alignItems: "center", width: "100%" }}>
-                    <Text style={{ color: "#ff6b6b", fontSize: 15, textAlign: "center", lineHeight: 20 }}>{emailError}</Text>
-                  </View>
-                )}
-              </>
-            )}
-            {step === 2 && (
-              <Animated.View
+        <View
+          style={[
+            styles.fixedInputContainer,
+            {
+              borderTopWidth: showBlur || keyboardOpen ? 0.3 : 0,
+              borderTopColor:
+                showBlur || keyboardOpen ? "#333333" : "transparent",
+            },
+          ]}
+        >
+          {step === 1 && (
+            <>
+              <View
                 style={{
-                  flex: 1,
+                  paddingHorizontal: 24,
+                  width: "100%",
+                  height: 44,
+                  position: "relative",
+                  overflow: "visible",
                   flexDirection: "row",
                   alignItems: "center",
-                  opacity: passwordFade,
-                  position: "relative",
+                  gap: Dimensions.get("window").width * 0.04,
                 }}
               >
                 <TextInput
-                  style={styles.inputBig}
+                  style={[
+                    styles.inputBig,
+                    {
+                      height: "100%",
+                      borderWidth: 1,
+                      borderColor:
+                        !emailTouched || !email
+                          ? "#a3a3a3"
+                          : emailError
+                          ? "#ff6b6b"
+                          : "#4CAF50",
+                      color: "#fff",
+                      backgroundColor: "black",
+                      paddingRight: 90,
+                      paddingLeft: 20,
+                      fontSize: 17,
+                      borderRadius: 22,
+                      paddingVertical: 0,
+                      flex: 1,
+                    },
+                  ]}
+                  placeholder="adresse email"
+                  placeholderTextColor="#888"
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    setEmailTouched(true);
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoFocus
+                  returnKeyType="next"
+                  onPressIn={() => setShowBlur(true)}
+                  onSubmitEditing={() => {
+                    if (isEmailValid) {
+                      setShowBlur(false);
+                      handleNext();
+                    } else {
+                      setEmailTouched(true);
+                    }
+                  }}
+                />
+                {/* Bouton clear (croix) en absolute à droite dans le champ */}
+                {email.length > 0 && (
+                  <TouchableOpacity
+                    style={{
+                      position: "absolute",
+                      right: Dimensions.get("window").width * 0.2,
+                      top: 0,
+                      bottom: 0,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      width: 44,
+                      height: 44,
+                      zIndex: 2,
+                    }}
+                    onPress={() => setEmail("")}
+                  >
+                    <Ionicons name="close" size={22} color="#888" />
+                  </TouchableOpacity>
+                )}
+                {/* Bouton flèche dans un cercle, à droite */}
+                <TouchableOpacity
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    backgroundColor: "#0A0A0A",
+                    borderWidth: .5,
+                    borderColor:
+                      !emailTouched || !email
+                        ? "grey"
+                        : emailError
+                        ? "#ff6b6b"
+                        : "#4CAF50",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: isEmailValid ? 1 : 0.5,
+                    marginLeft: 2,
+                  }}
+                  onPress={() => {
+                    if (isEmailValid) {
+                      setShowBlur(false);
+                      handleNext();
+                    } else {
+                      setEmailTouched(true);
+                    }
+                  }}
+                  disabled={!isEmailValid}
+                >
+                  <Ionicons name="arrow-forward" size={22} color="grey" />
+                </TouchableOpacity>
+              </View>
+              {/* Message d'erreur */}
+              {showEmailError && (
+                <Animated.View
+                  style={{
+                    marginTop: 10,
+                    marginBottom: 0,
+                    alignItems: "center",
+                    width: "70%",
+                    borderRadius: 10,
+                    padding: 10,
+                    position: "absolute",
+                    top: -Dimensions.get("window").height * 0.09,
+                    backgroundColor: "rgba(36,34,34,0.95)",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 2,
+                    elevation: 3,
+                    opacity: emailErrorOpacity,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontSize: 15,
+                      textAlign: "center",
+                      lineHeight: 20,
+                    }}
+                  >
+                    {emailError}
+                  </Text>
+                </Animated.View>
+              )}
+            </>
+          )}
+          {step === 2 && (
+            <>
+              <View
+                style={{
+                  paddingHorizontal: 24,
+                  width: "100%",
+                  height: 44,
+                  position: "relative",
+                  overflow: "visible",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  borderWidth: keyboardOpen ? 0.5 : 0,
+                  borderColor: !passwordTouched || !password ? "grey" : passwordError ? "#ff6b6b" : "#4CAF50",
+                  borderRadius: 22,
+                  backgroundColor: "black",
+                  borderTopWidth: (showBlur || keyboardOpen) ? 0.5 : 0,
+                  borderTopColor: (showBlur || keyboardOpen) ? "#fff" : "transparent",
+                  paddingLeft: 20,
+                  paddingRight: 6,
+                }}
+              >
+                <TextInput
+                  style={{
+                    flex: 1,
+                    height: "100%",
+                    color: "#fff",
+                    backgroundColor: "transparent",
+                    fontSize: 17,
+                    borderWidth: 0,
+                    paddingVertical: 0,
+                  }}
                   placeholder="mot de passe"
-                  placeholderTextColor="#aaa"
+                  placeholderTextColor="#888"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={text => {
+                    setPassword(text);
+                    setPasswordTouched(true);
+                  }}
                   secureTextEntry={!showPassword}
                   autoFocus
                   returnKeyType="go"
                   onPressIn={() => setShowBlur(true)}
                   onSubmitEditing={() => {
-                    setShowBlur(false);
-                    handleRegister();
+                    if (isPasswordValid) {
+                      setShowBlur(false);
+                      handleRegister();
+                    } else {
+                      setPasswordTouched(true);
+                    }
                   }}
                 />
+                {/* Icône œil show/hide */}
                 <TouchableOpacity
-                  style={styles.eyeButton}
+                  style={{ position: "absolute", right: 54, top: 0, bottom: 0, justifyContent: "center", alignItems: "center", width: 44, height: 44, zIndex: 2 }}
                   onPress={() => setShowPassword((v) => !v)}
                 >
                   <Ionicons
                     name={showPassword ? "eye-off" : "eye"}
                     size={22}
-                    color="#aaa"
+                    color="#888"
                   />
                 </TouchableOpacity>
+                {/* Bouton flèche dans un cercle, à droite */}
                 <TouchableOpacity
-                  style={styles.nextButton}
-                  onPress={() => {
-                    setShowBlur(false);
-                    handleRegister();
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    backgroundColor: "#0A0A0A",
+                    borderWidth: 0.5,
+                    borderColor: !passwordTouched || !password ? "grey" : passwordError ? "#ff6b6b" : "#4CAF50",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: isPasswordValid ? 1 : 0.5,
+                    marginLeft: 2,
                   }}
-                  disabled={loading}
+                  onPress={() => {
+                    if (isPasswordValid) {
+                      setShowBlur(false);
+                      handleRegister();
+                    } else {
+                      setPasswordTouched(true);
+                    }
+                  }}
+                  disabled={!isPasswordValid}
                 >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Ionicons name="arrow-forward" size={22} color="#fff" />
-                  )}
+                  <Ionicons name="arrow-forward" size={22} color="grey" />
                 </TouchableOpacity>
-              </Animated.View>
-            )}
-          </View>
+              </View>
+              {/* Message d'erreur mot de passe animé */}
+              {showPasswordError && (
+                <Animated.View
+                  style={{
+                    marginTop: 10,
+                    marginBottom: 0,
+                    alignItems: "center",
+                    width: "70%",
+                    borderRadius: 10,
+                    padding: 10,
+                    position: "absolute",
+                    top: -Dimensions.get("window").height * 0.09,
+                    backgroundColor: "rgba(36,34,34,0.95)",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 2,
+                    elevation: 3,
+                    opacity: passwordErrorOpacity,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontSize: 15,
+                      textAlign: "center",
+                      lineHeight: 20,
+                    }}
+                  >
+                    {passwordError}
+                  </Text>
+                </Animated.View>
+              )}
+            </>
+          )}
         </View>
       </KeyboardAvoidingView>
       <View
@@ -436,7 +641,6 @@ export default function RegisterScreen() {
           left: 0,
           right: 0,
           height: Dimensions.get("window").height * 0.2,
-          backgroundColor: "brown",
           justifyContent: "flex-start",
           alignItems: "flex-start",
           flexDirection: "column",
@@ -447,7 +651,7 @@ export default function RegisterScreen() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <Text style={{ color: "#fff" }}>Deja membre ?</Text>
           <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
-            <Text style={{ color: "blue" }}>Connectez-vous.</Text>
+            <Text style={{ color: "#3973c4" }}>Connectez-vous.</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -458,7 +662,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   sliderBigContainer: {
     position: "absolute",
-    backgroundColor: "red",
+    backgroundColor: "#161618",
     top: 0,
     left: 0,
     right: 0,
@@ -500,14 +704,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   fixedInputContainer: {
+    paddingVertical: 10,
     width: "100%",
-    paddingHorizontal: 24,
     alignItems: "center",
-  },
-  inputGroupRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
   },
   inputBig: {
     flex: 1,
