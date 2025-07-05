@@ -254,10 +254,12 @@ export const toggleThumbsUp = createAsyncThunk(
     const state = getState() as RootState;
     const articleFromItems = state.articles.items.find(a => a.article_id === articleId);
     const articleFromMyArticles = state.articles.myArticles.find(a => a.article_id === articleId);
-    const article = articleFromItems || articleFromMyArticles;
-    if (!article) throw new Error('Article not found');
+    const articleFromLiked = state.articles.likedArticles.find(a => a.article_id === articleId);
+    const article = articleFromItems || articleFromMyArticles || articleFromLiked;
+    // Si pas d'article, on continue quand même (on a les ids)
     let opError;
-    if (article.is_thumbed_up) {
+    const isThumbedUp = article ? article.is_thumbed_up : false;
+    if (isThumbedUp) {
       const { error } = await supabase.from('article_thumbs_up').delete().eq('user_id', userId).eq('article_id', articleId);
       opError = error;
     } else {
@@ -265,8 +267,8 @@ export const toggleThumbsUp = createAsyncThunk(
       opError = error;
     }
     if (opError) { console.error('Toggle thumbs up error:', opError); throw opError; }
-    const newThumbsUpCount = article.is_thumbed_up ? article.thumbs_up_count - 1 : article.thumbs_up_count + 1;
-    return { articleId, isThumbedUp: !article.is_thumbed_up, thumbsUpCount: newThumbsUpCount };
+    const newThumbsUpCount = article ? (isThumbedUp ? article.thumbs_up_count - 1 : article.thumbs_up_count + 1) : 0;
+    return { articleId, isThumbedUp: !isThumbedUp, thumbsUpCount: newThumbsUpCount };
   }
 );
 

@@ -15,9 +15,8 @@
       "production": {
       },
       "development": {
-        "ios": {
-          "simulator": true
-        }
+        "developmentClient": true,
+        "distribution": "internal"
       }
     }
   }

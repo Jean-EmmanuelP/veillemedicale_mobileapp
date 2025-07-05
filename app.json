@@ -3,7 +3,7 @@
     "name": "Sano",
     "slug": "Sano",
     "scheme": "veillemedicale",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -24,14 +24,18 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.veillemedicale.myapp",
-      "buildNumber": "2"
+      "buildNumber": "2",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.veillemedicale.myapp"
     },
     "web": {
       "output": "static",

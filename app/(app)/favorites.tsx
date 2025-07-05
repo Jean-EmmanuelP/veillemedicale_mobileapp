@@ -20,6 +20,8 @@ export default function FavoritesScreen() {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
   const [modalType, setModalType] = useState<'downloaded' | 'liked' | null>(null);
   const [downloadLoadingIds, setDownloadLoadingIds] = useState<number[]>([]);
+  const [likeLoadingIds, setLikeLoadingIds] = useState<number[]>([]);
+  const [thumbsUpLoadingIds, setThumbsUpLoadingIds] = useState<number[]>([]);
 
   useEffect(() => {
     if (user?.id) {
@@ -42,8 +44,6 @@ export default function FavoritesScreen() {
     return () => subscription && subscription.remove();
   }, [user?.id]);
 
-  // Articles favoris (likés/sauvegardés)
-  const favoriteArticles = items.filter(a => savedArticleIds.includes(a.article_id));
 
   // Rafraîchir favoris et téléchargés en temps réel
   useFocusEffect(
@@ -88,6 +88,22 @@ export default function FavoritesScreen() {
     }
   };
 
+  const handleLike = async (article: any) => {
+    if (!user?.id) return;
+    setLikeLoadingIds(ids => [...ids, article.article_id]);
+    await dispatch(toggleLike({ articleId: article.article_id, userId: user.id }));
+    dispatch(fetchLikedArticles({ userId: user.id }));
+    setLikeLoadingIds(ids => ids.filter(id => id !== article.article_id));
+  };
+
+  const handleThumbsUp = async (article: any) => {
+    if (!user?.id) return;
+    setThumbsUpLoadingIds(ids => [...ids, article.article_id]);
+    await dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id }));
+    dispatch(fetchLikedArticles({ userId: user.id }));
+    setThumbsUpLoadingIds(ids => ids.filter(id => id !== article.article_id));
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {!isConnected && (
@@ -128,8 +144,8 @@ export default function FavoritesScreen() {
             article={item}
             onPress={() => { setSelectedArticle(item); setModalType('liked'); }}
             onLinkPress={() => {}}
-            onLikePress={() => dispatch(toggleLike({ articleId: item.article_id, userId: user.id }))}
-            onThumbsUpPress={() => dispatch(toggleThumbsUp({ articleId: item.article_id, userId: user.id }))}
+            onLikePress={() => handleLike(item)}
+            onThumbsUpPress={() => !thumbsUpLoadingIds.includes(item.article_id) && handleThumbsUp(item)}
           />
         )}
         ListEmptyComponent={loading ? <ActivityIndicator /> : null}
