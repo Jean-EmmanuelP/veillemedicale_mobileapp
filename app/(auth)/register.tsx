@@ -711,7 +711,7 @@ export default function RegisterScreen() {
         {step === 1 && (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <Text style={{ color: "#fff" }}>Déjà membre ?</Text>
-          <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
+          <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
             <Text style={{ color: "#3973c4" }}>Connectez-vous.</Text>
           </TouchableOpacity>
         </View>
