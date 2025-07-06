@@ -19,6 +19,7 @@ import { useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
 import { supabase } from "../../lib/supabase";
 import { FONTS, FONT_SIZES } from "../../assets/constants/fonts";
+import LoaderS from "../../components/LoaderS";
 
 const { width, height } = Dimensions.get("window");
 
@@ -65,6 +66,11 @@ export default function RegisterScreen() {
   const passwordErrorOpacity = React.useRef(new Animated.Value(0)).current;
   const [showPasswordError, setShowPasswordError] = useState(false);
   const isPasswordValid = password.length >= 6;
+  const [showLoader, setShowLoader] = useState(false);
+  const [showUserExistsError, setShowUserExistsError] = useState(false);
+  const userExistsErrorOpacity = React.useRef(new Animated.Value(0)).current;
+  const [userExistsErrorMsg, setUserExistsErrorMsg] = useState("");
+  const loaderAnim = React.useRef(new Animated.Value(0)).current;
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email);
@@ -180,6 +186,41 @@ export default function RegisterScreen() {
     }
   }, [passwordError]);
 
+  // Animation du S
+  React.useEffect(() => {
+    if (showLoader) {
+      Animated.loop(
+        Animated.timing(loaderAnim, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+          easing: Easing.linear,
+        })
+      ).start();
+    } else {
+      loaderAnim.setValue(0);
+    }
+  }, [showLoader]);
+
+  // Pop-up erreur user exists
+  React.useEffect(() => {
+    if (showUserExistsError) {
+      Animated.timing(userExistsErrorOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+      setTimeout(() => {
+        Animated.timing(userExistsErrorOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => setShowUserExistsError(false));
+        setStep(1);
+      }, 1500);
+    }
+  }, [showUserExistsError]);
+
   const passwordFade = passwordAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 1],
@@ -208,6 +249,7 @@ export default function RegisterScreen() {
       return;
     }
     setLoading(true);
+    setShowLoader(true);
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -215,16 +257,25 @@ export default function RegisterScreen() {
       });
       console.log(JSON.stringify(data, null, 2));
       if (signUpError) {
-        if (signUpError.message.includes("User already registered")) {
-          setError("Cet email est déjà utilisé.");
+        if (
+          signUpError.code === "user_already_exists" ||
+          signUpError.message?.includes("User already registered")
+        ) {
+          setUserExistsErrorMsg("Cet email est déjà utilisé.");
+          setShowUserExistsError(true);
+          setShowLoader(false);
+          setLoading(false);
+          return;
         } else {
           setError("Erreur lors de l'inscription: " + signUpError.message);
+          setShowLoader(false);
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-        return;
       }
       if (!data.user) {
         setError("Erreur interne lors de la création de l'utilisateur.");
+        setShowLoader(false);
         setLoading(false);
         return;
       }
@@ -289,6 +340,7 @@ export default function RegisterScreen() {
       setError("Erreur de connexion lors de l'inscription.");
     }
     setLoading(false);
+    setShowLoader(false);
   };
 
   return (
@@ -410,7 +462,6 @@ export default function RegisterScreen() {
                   }}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  autoFocus
                   returnKeyType="next"
                   onPressIn={() => setShowBlur(true)}
                   onSubmitEditing={() => {
@@ -547,7 +598,6 @@ export default function RegisterScreen() {
                     setPasswordTouched(true);
                   }}
                   secureTextEntry={!showPassword}
-                  autoFocus
                   returnKeyType="go"
                   onPressIn={() => setShowBlur(true)}
                   onSubmitEditing={() => {
@@ -674,6 +724,39 @@ export default function RegisterScreen() {
           </View>
         )}
       </View>
+      {/* Loader overlay S animé */}
+      <LoaderS visible={showLoader} />
+      {/* Pop-up erreur user exists */}
+      {showUserExistsError && (
+        <Animated.View
+          style={{
+            position: "absolute",
+            top: Dimensions.get("window").height * 0.18,
+            left: 0,
+            right: 0,
+            alignItems: "center",
+            opacity: userExistsErrorOpacity,
+            zIndex: 101,
+          }}
+          pointerEvents="none"
+        >
+          <View
+            style={{
+              backgroundColor: "rgba(36,34,34,0.95)",
+              borderRadius: 10,
+              padding: 16,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.15,
+              shadowRadius: 2,
+              elevation: 3,
+              maxWidth: "80%",
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 16, textAlign: "center" }}>{userExistsErrorMsg}</Text>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
