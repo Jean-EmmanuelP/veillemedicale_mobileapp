@@ -441,20 +441,15 @@ export default function RegisterScreen() {
                     <Ionicons name="close" size={22} color="#888" />
                   </TouchableOpacity>
                 )}
-                {/* Bouton flèche dans un cercle, à droite */}
+                {/* Bouton flèche dans un cercle, à droite, identique à l'email */}
                 <TouchableOpacity
                   style={{
                     width: 44,
                     height: 44,
                     borderRadius: 22,
-                    backgroundColor: "#0A0A0A",
-                    borderWidth: .5,
-                    borderColor:
-                      !emailTouched || !email
-                        ? "grey"
-                        : emailError
-                        ? "#ff6b6b"
-                        : "#4CAF50",
+                    backgroundColor: isEmailValid ? "#fff" : "#0A0A0A",
+                    borderWidth: 1,
+                    borderColor: isEmailValid ? "#fff" : "#a3a3a3",
                     alignItems: "center",
                     justifyContent: "center",
                     opacity: isEmailValid ? 1 : 0.5,
@@ -470,7 +465,7 @@ export default function RegisterScreen() {
                   }}
                   disabled={!isEmailValid}
                 >
-                  <Ionicons name="arrow-forward" size={22} color="grey" />
+                  <Ionicons name="arrow-forward" size={22} color={isEmailValid ? "#111" : "grey"} />
                 </TouchableOpacity>
               </View>
               {/* Message d'erreur */}
@@ -519,26 +514,31 @@ export default function RegisterScreen() {
                   overflow: "visible",
                   flexDirection: "row",
                   alignItems: "center",
-                  borderWidth: keyboardOpen ? 0.5 : 0,
-                  borderColor: !passwordTouched || !password ? "grey" : passwordError ? "#ff6b6b" : "#4CAF50",
-                  borderRadius: 22,
-                  backgroundColor: "black",
-                  borderTopWidth: (showBlur || keyboardOpen) ? 0.5 : 0,
-                  borderTopColor: (showBlur || keyboardOpen) ? "#fff" : "transparent",
-                  paddingLeft: 20,
-                  paddingRight: 6,
+                  gap: Dimensions.get("window").width * 0.04,
                 }}
               >
                 <TextInput
-                  style={{
-                    flex: 1,
-                    height: "100%",
-                    color: "#fff",
-                    backgroundColor: "transparent",
-                    fontSize: 17,
-                    borderWidth: 0,
-                    paddingVertical: 0,
-                  }}
+                  style={[
+                    styles.inputBig,
+                    {
+                      height: "100%",
+                      borderWidth: 1,
+                      borderColor:
+                        !passwordTouched || !password
+                          ? "#a3a3a3"
+                          : passwordError
+                          ? "#ff6b6b"
+                          : "#4CAF50",
+                      color: "#fff",
+                      backgroundColor: "black",
+                      paddingRight: 90,
+                      paddingLeft: 20,
+                      fontSize: 17,
+                      borderRadius: 22,
+                      paddingVertical: 0,
+                      flex: 1,
+                    },
+                  ]}
                   placeholder="mot de passe"
                   placeholderTextColor="#888"
                   value={password}
@@ -561,12 +561,22 @@ export default function RegisterScreen() {
                 />
                 {/* Icône œil show/hide */}
                 <TouchableOpacity
-                  style={{ position: "absolute", right: 54, top: 0, bottom: 0, justifyContent: "center", alignItems: "center", width: 44, height: 44, zIndex: 2 }}
+                  style={{
+                    position: "absolute",
+                    right: Dimensions.get("window").width * 0.22,
+                    top: 0,
+                    bottom: 0,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    width: 44,
+                    height: 44,
+                    zIndex: 2,
+                  }}
                   onPress={() => setShowPassword((v) => !v)}
                 >
                   <Ionicons
                     name={showPassword ? "eye-off" : "eye"}
-                    size={22}
+                    size={20}
                     color="#888"
                   />
                 </TouchableOpacity>
@@ -576,9 +586,9 @@ export default function RegisterScreen() {
                     width: 44,
                     height: 44,
                     borderRadius: 22,
-                    backgroundColor: "#0A0A0A",
-                    borderWidth: 0.5,
-                    borderColor: !passwordTouched || !password ? "grey" : passwordError ? "#ff6b6b" : "#4CAF50",
+                    backgroundColor: isPasswordValid ? "#fff" : "#0A0A0A",
+                    borderWidth: 1,
+                    borderColor: isPasswordValid ? "#fff" : "#a3a3a3",
                     alignItems: "center",
                     justifyContent: "center",
                     opacity: isPasswordValid ? 1 : 0.5,
@@ -594,7 +604,7 @@ export default function RegisterScreen() {
                   }}
                   disabled={!isPasswordValid}
                 >
-                  <Ionicons name="arrow-forward" size={22} color="grey" />
+                  <Ionicons name="arrow-forward" size={22} color={isPasswordValid ? "#111" : "grey"} />
                 </TouchableOpacity>
               </View>
               {/* Message d'erreur mot de passe animé */}
@@ -648,12 +658,21 @@ export default function RegisterScreen() {
           paddingTop: 10,
         }}
       >
+        {step === 1 && (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Text style={{ color: "#fff" }}>Deja membre ?</Text>
+          <Text style={{ color: "#fff" }}>Déjà membre ?</Text>
           <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
             <Text style={{ color: "#3973c4" }}>Connectez-vous.</Text>
           </TouchableOpacity>
         </View>
+        )}
+        {step === 2 && (
+          <View style={{ width: "100%", height: "100%", flexDirection: "row", alignItems: "flex-end", justifyContent: "center", paddingBottom: Dimensions.get("window").height * 0.05 }}>
+            <TouchableOpacity onPress={handleBack}>
+              <Text style={{ color: "#3973c4" }}>retour à l'étape précédente</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
