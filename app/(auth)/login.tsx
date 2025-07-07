@@ -27,6 +27,7 @@ import { signIn } from "../../store/authSlice";
 import { AppDispatch } from "../../store";
 import { BlurView } from "expo-blur";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import ForgotPasswordModal from "../../components/ForgotPasswordModal";
 
 const { width, height } = Dimensions.get("window");
 
@@ -57,6 +58,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [lastLoginMethod, setLastLoginMethod] = useState<string | null>(null);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
   React.useEffect(() => {
     AsyncStorage.getItem("lastLoginMethod").then(setLastLoginMethod);
@@ -208,7 +210,10 @@ export default function LoginScreen() {
         <View style={{ alignItems: "flex-start", marginTop: 12, marginBottom: 18 }}>
           <Text style={{ color: "#fff", fontSize: 14 }}>
             Mot de passe oublié ?{" "}
-            <Text style={{ color: "#2196F3", fontWeight: "500" }}>
+            <Text
+              style={{ color: "#2196F3", fontWeight: "500" }}
+              onPress={() => setShowForgotPasswordModal(true)}
+            >
               cliquez ici.
             </Text>
           </Text>
@@ -280,7 +285,9 @@ export default function LoginScreen() {
       <View
         style={{
           backgroundColor: "#000",
-          paddingVertical: 10,
+          paddingVertical: Dimensions.get("window").height * 0.03,
+          borderTopWidth: .4,
+          borderColor: "#919191",
           alignItems: "center",
         }}
       >
@@ -291,6 +298,10 @@ export default function LoginScreen() {
           </Text>
         )}
       </View>
+      <ForgotPasswordModal
+        visible={showForgotPasswordModal}
+        onClose={() => setShowForgotPasswordModal(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
