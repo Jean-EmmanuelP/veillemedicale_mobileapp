@@ -13,6 +13,7 @@ import {
   Dimensions,
   SafeAreaView,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { WebView } from 'react-native-webview';
@@ -21,6 +22,7 @@ import { FONTS, FONT_SIZES, LINE_HEIGHTS } from "../assets/constants/fonts";
 import { SCREEN_WIDTH } from "../assets/constants/dimensions";
 import { COLORS } from "../assets/constants/colors";
 import * as Network from 'expo-network';
+import { renderGradeStars } from '../utils/gradeStars';
 
 interface ArticleModalProps {
   visible: boolean;
@@ -93,6 +95,41 @@ export default function ArticleModal({
     });
   };
 
+  if (showWebView) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={handleCloseWebView}
+      >
+        <SafeAreaView style={styles.webViewSafeArea}>
+          <View style={styles.webViewHeader}>
+            <TouchableOpacity 
+              style={styles.webViewCloseButton} 
+              onPress={handleCloseWebView}
+            >
+              <MaterialIcons name="close" size={28} color={COLORS.iconPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.webViewTitle} numberOfLines={1}>
+              {article.journal}
+            </Text>
+          </View>
+          <WebView 
+            source={{ uri: article.link }} 
+            style={styles.webView}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.webViewLoading}>
+                <ActivityIndicator size="large" color={COLORS.iconPrimary} />
+              </View>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       visible={visible}
@@ -126,8 +163,7 @@ export default function ArticleModal({
                 </Text>
               </View>
               <View style={styles.metaItem}>
-                <Ionicons name="star-outline" size={16} color={COLORS.iconSecondary} />
-                <Text style={styles.metaText}>{article.grade}</Text>
+                {renderGradeStars(article.grade, 16, true, { fontSize: 14, color: COLORS.textSecondary })}
               </View>
             </View>
             <View style={styles.articleStats}>
@@ -318,6 +354,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.headerBackground,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderPrimary,
+  },
+  webViewCloseButton: {
+    padding: 5,
+  },
+  webViewTitle: {
+    flex: 1,
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.textPrimary,
+    marginLeft: 10,
+  },
+  webView: {
+    flex: 1,
+  },
+  webViewLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.backgroundPrimary,
   },
   webViewBackButton: {
     flexDirection: 'row',

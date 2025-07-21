@@ -3,18 +3,22 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { BlurView } from 'expo-blur';
 import { FontAwesome } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
+import { useRouter } from 'expo-router';
 import { RootState } from '../store';
 import { COLORS } from '../assets/constants/colors';
 import { FONTS, FONT_SIZES } from '../assets/constants/fonts';
 
 interface TopHeaderProps {
   title: string;
-  onProfilePress?: () => void;
-  onTitlePress?: () => void;
 }
 
-export default function TopHeader({ title, onProfilePress, onTitlePress }: TopHeaderProps) {
+export default function TopHeader({ title }: TopHeaderProps) {
+  const router = useRouter();
   const { profile } = useSelector((state: RootState) => state.profile);
+
+  const handleSettingsPress = () => {
+    router.push('/profile');
+  };
 
   const renderAvatar = () => {
     if (profile?.first_name) {
@@ -26,30 +30,21 @@ export default function TopHeader({ title, onProfilePress, onTitlePress }: TopHe
         </View>
       );
     }
-    return <FontAwesome name="user" size={20} color={COLORS.iconPrimary} />;
-  };
-
-  const renderTitle = () => {
-    if (onTitlePress) {
-      return (
-        <TouchableOpacity onPress={onTitlePress} activeOpacity={0.7} style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={styles.title}>{title}</Text>
-        </TouchableOpacity>
-      );
-    }
-    return <Text style={styles.title}>{title}</Text>;
+    return <FontAwesome name="user" size={18} color={COLORS.iconPrimary} />;
   };
 
   return (
-    <BlurView intensity={40} tint="dark" style={styles.container}>
+    <BlurView intensity={0} tint="dark" style={styles.container}>
       <View style={styles.content}>
-        <TouchableOpacity onPress={onProfilePress} style={styles.profileButton}>
+        <View style={styles.leftSpacer} />
+        
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>{title}</Text>
+        </View>
+        
+        <TouchableOpacity onPress={handleSettingsPress} style={styles.settingsButton}>
           {renderAvatar()}
         </TouchableOpacity>
-        
-        {renderTitle()}
-        
-        <View style={styles.rightSpacer} />
       </View>
     </BlurView>
   );
@@ -57,28 +52,32 @@ export default function TopHeader({ title, onProfilePress, onTitlePress }: TopHe
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
-    paddingBottom: 10,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    backgroundColor: 'rgba(24, 24, 24, 0.8)',
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.borderPrimary,
+    paddingTop: Platform.OS === 'ios' ? 44 : 16,
+    paddingBottom: 8,
+    backgroundColor: 'black',
     overflow: 'hidden',
+    marginBottom: 10,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
-  profileButton: {
-    padding: 4,
+  leftSpacer: {
+    width: 32,
+  },
+  titleContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  settingsButton: {
+    padding: 2,
   },
   avatarCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: COLORS.borderPrimary,
     justifyContent: 'center',
@@ -87,19 +86,16 @@ const styles = StyleSheet.create({
   },
   avatarInitial: {
     color: COLORS.textPrimary,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
     fontFamily: FONTS.sans.bold,
   },
   title: {
     color: COLORS.textPrimary,
     fontWeight: 'bold',
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.base,
     textAlign: 'center',
     fontFamily: FONTS.sans.bold,
     textTransform: 'uppercase',
-  },
-  rightSpacer: {
-    width: 40, // Same width as profile button to center the title
   },
 }); 

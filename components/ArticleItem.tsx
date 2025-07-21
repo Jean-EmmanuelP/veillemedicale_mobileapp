@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Article } from '../types';
 import { FONTS, FONT_SIZES, LINE_HEIGHTS } from '../assets/constants/fonts';
 import { COLORS } from '../assets/constants/colors';
+import { renderGradeStars } from '../utils/gradeStars';
 
 interface ArticleItemProps {
   article: Article & { localUri?: string };
@@ -54,10 +55,7 @@ export default function ArticleItem({
             </Text>
           </View>
           <View style={styles.metaItem}>
-            <Ionicons name="star" size={16} color={COLORS.iconSecondary} />
-            <Text style={styles.metaText}>
-              {article.grade}
-            </Text>
+            {renderGradeStars(article.grade, 14, true)}
           </View>
         </View>
 

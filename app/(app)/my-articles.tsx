@@ -179,10 +179,6 @@ export default function MyArticlesScreen() {
   const openArticleModal = (article: Article) => { setSelectedArticle(article); setModalVisible(true); };
   const closeArticleModal = () => { setModalVisible(false); setSelectedArticle(null); };
 
-  const handleProfilePress = () => {
-    router.push('/(app)/profile');
-  };
-
   if (errorMyArticles) return <View style={styles.centerContainer}><Text style={styles.errorText}>{errorMyArticles}</Text></View>;
 
   const disciplineFilterOptions = ['all', ...disciplines.map(d => d.name)];
@@ -196,13 +192,23 @@ export default function MyArticlesScreen() {
 
   return (
     <View style={styles.container}>
-      <TopHeader 
-        title="Mes Articles" 
-        onProfilePress={handleProfilePress}
-      />
+      <TopHeader title="Mes Articles" />
       
-      {/* Toggle filter */}
-      <View style={{ flexDirection: 'row', justifyContent: 'center', marginVertical: 10 }}>
+    
+      
+      <FilterHeader
+        disciplines={disciplineFilterOptions}
+        subDisciplines={subDisciplineFilterOptions}
+        selectedDiscipline={selectedDiscipline}
+        selectedSubDiscipline={selectedSubDiscipline}
+        selectedGrade={selectedGrade}
+        onDisciplineChange={handleDisciplineChange}
+        onSubDisciplineChange={handleSubDisciplineChange}
+        onGradeChange={(newGrade) => {}}
+        loadingSubDisciplines={false}
+      />
+        {/* Toggle filter */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginVertical: 10 }}>
         <TouchableOpacity
           style={[styles.toggleButton, filterType === 'all' && styles.toggleButtonActive]}
           onPress={() => setFilterType('all')}
@@ -222,18 +228,6 @@ export default function MyArticlesScreen() {
           <Text style={[styles.toggleButtonText, filterType === 'recommandations' && styles.toggleButtonTextActive]}>Recommandations</Text>
         </TouchableOpacity>
       </View>
-      
-      <FilterHeader
-        disciplines={disciplineFilterOptions}
-        subDisciplines={subDisciplineFilterOptions}
-        selectedDiscipline={selectedDiscipline}
-        selectedSubDiscipline={selectedSubDiscipline}
-        selectedGrade={selectedGrade}
-        onDisciplineChange={handleDisciplineChange}
-        onSubDisciplineChange={handleSubDisciplineChange}
-        onGradeChange={(newGrade) => {}}
-        loadingSubDisciplines={false}
-      />
       
       <FlashList
         data={listData}

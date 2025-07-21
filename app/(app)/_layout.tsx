@@ -8,23 +8,6 @@ import React, { useEffect } from 'react';
 import { fetchProfile } from '../../store/profileSlice';
 import { BlurView } from 'expo-blur';
 
-// Helper component for the avatar
-const UserAvatar = ({ color }: { color: string }) => {
-  const { profile } = useSelector((state: RootState) => state.profile);
-
-  if (profile?.first_name) {
-    return (
-      <View style={[styles.avatarCircle, { borderColor: color }]}>
-        <Text style={[styles.avatarInitial, { color }]}>
-          {profile.first_name.charAt(0).toUpperCase()}
-        </Text>
-      </View>
-    );
-  }
-
-  return <FontAwesome name="user" size={24} color={color} />;
-};
-
 export default function AppLayout() {
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.auth);
@@ -46,11 +29,9 @@ export default function AppLayout() {
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: 'rgba(24, 24, 24, 0.8)',
+          backgroundColor: 'black',
           borderTopWidth: 0.5,
           borderTopColor: COLORS.borderPrimary,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
           height: 80,
           paddingBottom: 20,
           paddingTop: 10,
@@ -59,12 +40,10 @@ export default function AppLayout() {
         tabBarInactiveTintColor: COLORS.tabBarInactiveTint,
         tabBarBackground: () => (
           <BlurView 
-            intensity={40} 
+            intensity={0}
             tint="dark" 
             style={{
               ...StyleSheet.absoluteFillObject,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
               overflow: 'hidden',
             }} 
           />
@@ -90,13 +69,6 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profil',
-          tabBarIcon: ({ color }) => <UserAvatar color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="favorites"
         options={{
           title: 'Favoris',
@@ -107,27 +79,4 @@ export default function AppLayout() {
       />
     </Tabs>
   );
-}
-
-const styles = StyleSheet.create({
-  avatarImage: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-  },
-  avatarCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.borderPrimary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.backgroundSecondary,
-  },
-  avatarInitial: {
-    color: COLORS.textPrimary,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-}); 
+} 

@@ -14,17 +14,18 @@ import {
   SafeAreaView,
   FlatList,
 } from 'react-native';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { setUser, setSession } from '../../store/authSlice';
-import { fetchProfile, updateProfile, clearSaveSuccess } from '../../store/profileSlice';
-import { supabase } from '../../lib/supabase';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { setUser, setSession } from '../store/authSlice';
+import { fetchProfile, updateProfile, clearSaveSuccess } from '../store/profileSlice';
+import { supabase } from '../lib/supabase';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { COLORS } from '../../assets/constants/colors';
-import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
-import NotificationService from '../../services/NotificationService';
-import TopHeader from '../../components/TopHeader';
+import { COLORS } from '../assets/constants/colors';
+import { FONTS, FONT_SIZES } from '../assets/constants/fonts';
+import NotificationService from '../services/NotificationService';
+import { BlurView } from 'expo-blur';
+import { renderGradeStars } from '../utils/gradeStars';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -456,13 +457,6 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             )}
           />
-          {/* <TouchableOpacity
-            style={styles.testNotificationButton}
-            onPress={handleTestNotification}
-          >
-            <Ionicons name="notifications" size={16} color={COLORS.white} />
-            <Text style={styles.testNotificationButtonText}>Tester les notifications</Text>
-          </TouchableOpacity> */}
         </View>
       </View>
     </Modal>
@@ -628,11 +622,20 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <TopHeader 
-        title="Mon compte" 
-        onProfilePress={handleBackPress}
-        onTitlePress={handleAdminTitlePress}
-      />
+      {/* Custom header with back button */}
+      <BlurView intensity={0} tint="dark" style={styles.headerContainer}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.iconPrimary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity onPress={handleAdminTitlePress} activeOpacity={0.7} style={styles.titleContainer}>
+            <Text style={styles.headerTitle}>Paramètres</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.headerSpacer} />
+        </View>
+      </BlurView>
       
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {error && (
@@ -737,14 +740,6 @@ export default function ProfileScreen() {
               </Text>
               <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
             </TouchableOpacity>
-            
-            {/* <TouchableOpacity
-              style={styles.testNotificationButton}
-              onPress={handleTestNotification}
-            >
-              <Ionicons name="notifications" size={16} color={COLORS.white} />
-              <Text style={styles.testNotificationButtonText}>Tester les notifications</Text>
-            </TouchableOpacity> */}
           </View>
 
           <View style={styles.inputContainer}>
@@ -767,14 +762,17 @@ export default function ProfileScreen() {
                   ]}
                   onPress={() => handleGradeChange(grade, !selectedGrades.includes(grade))}
                 >
-                  <Text
-                    style={[
-                      styles.gradeButtonText,
-                      selectedGrades.includes(grade) && styles.gradeButtonTextSelected,
-                    ]}
-                  >
-                    Grade {grade}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {renderGradeStars(grade, 14)}
+                    <Text
+                      style={[
+                        styles.gradeButtonText,
+                        selectedGrades.includes(grade) && styles.gradeButtonTextSelected,
+                      ]}
+                    >
+                      {grade}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -786,7 +784,10 @@ export default function ProfileScreen() {
               {gradeInfo.map((info) => (
                 <View key={info.grade} style={styles.gradeInfoItem}>
                   <View style={styles.gradeInfoHeader}>
-                    <Text style={styles.gradeInfoGrade}>Grade {info.grade}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {renderGradeStars(info.grade, 16)}
+                      <Text style={styles.gradeInfoGrade}>Grade {info.grade}</Text>
+                    </View>
                     <Text style={styles.gradeInfoLabel}>{info.label}</Text>
                   </View>
                   <Text style={styles.gradeInfoNiveau}>{info.niveau}</Text>
@@ -916,24 +917,50 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.backgroundPrimary,
   },
+  headerContainer: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 10,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    backgroundColor: 'black',
+    overflow: 'hidden',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  backButton: {
+    padding: 4,
+  },
+  titleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    color: COLORS.textPrimary,
+    fontWeight: 'bold',
+    fontSize: FONT_SIZES.lg,
+    textAlign: 'center',
+    fontFamily: FONTS.sans.bold,
+    textTransform: 'uppercase',
+  },
+  headerSpacer: {
+    width: 32, // Same width as back button to center the title
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 120, // Extra space for glassmorphism navbar
+    paddingBottom: 40, // Regular padding since no navbar on this page
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: COLORS.backgroundPrimary,
-  },
-  title: {
-    fontSize: FONT_SIZES['2xl'],
-    fontFamily: FONTS.sans.bold,
-    marginBottom: 20,
-    color: COLORS.textPrimary,
   },
   section: {
     marginBottom: 30,
@@ -1028,13 +1055,15 @@ const styles = StyleSheet.create({
   },
   gradeButton: {
     flex: 1,
-    padding: 10,
+    padding: 8,
     borderWidth: 1,
     borderColor: COLORS.borderInput,
     borderRadius: 5,
     marginHorizontal: 5,
     alignItems: 'center',
     backgroundColor: COLORS.backgroundPrimary,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   gradeButtonSelected: {
     backgroundColor: COLORS.buttonBackgroundPrimary,
@@ -1043,6 +1072,8 @@ const styles = StyleSheet.create({
   gradeButtonText: {
     fontFamily: FONTS.sans.regular,
     color: COLORS.textPrimary,
+    marginLeft: 4,
+    fontSize: 12,
   },
   gradeButtonTextSelected: {
     fontFamily: FONTS.sans.regular,
@@ -1081,14 +1112,13 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   gradeInfoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
     marginBottom: 5,
   },
   gradeInfoGrade: {
     fontSize: FONT_SIZES.base,
     fontFamily: FONTS.sans.bold,
-    marginRight: 10,
+    marginLeft: 8,
     color: COLORS.textPrimary,
   },
   gradeInfoLabel: {
@@ -1299,20 +1329,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: FONT_SIZES.base,
     fontFamily: FONTS.sans.bold,
-  },
-  testNotificationButton: {
-    backgroundColor: COLORS.buttonBackgroundPrimary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  testNotificationButtonText: {
-    color: COLORS.white,
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.sans.regular,
-    marginLeft: 8,
   },
 }); 

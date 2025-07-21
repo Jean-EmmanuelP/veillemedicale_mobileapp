@@ -234,10 +234,6 @@ export default function ArticlesScreen() {
     dispatch(setSelectedGrade(newGrade));
   };
 
-  const handleProfilePress = () => {
-    router.push('/(app)/profile');
-  };
-
   if (errorItems) {
     return (
       <View style={styles.centerContainer}>
@@ -253,10 +249,7 @@ export default function ArticlesScreen() {
 
   return (
     <View style={styles.container}>
-      <TopHeader 
-        title="Les Articles" 
-        onProfilePress={handleProfilePress}
-      />
+      <TopHeader title="Les Articles" />
       
       <FilterHeader
         disciplines={disciplineOptions}

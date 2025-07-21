@@ -109,16 +109,9 @@ export default function FavoritesScreen() {
     setThumbsUpLoadingIds(ids => ids.filter(id => id !== article.article_id));
   };
 
-  const handleProfilePress = () => {
-    router.push('/(app)/profile');
-  };
-
   return (
     <View style={styles.container}>
-      <TopHeader 
-        title="Favoris" 
-        onProfilePress={handleProfilePress}
-      />
+      <TopHeader title="Favoris" />
       
       {!isConnected && (
         <View style={styles.offlineBanner}>
