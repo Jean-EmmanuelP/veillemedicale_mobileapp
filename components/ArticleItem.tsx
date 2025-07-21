@@ -194,6 +194,8 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sans.bold,
   } as TextStyle,
   recommandationBackground: {
-    backgroundColor: '#FFF9C4', // Jaune pâle
+    backgroundColor: COLORS.backgroundSecondary, // Dark gray instead of bright yellow
+    borderColor: COLORS.borderPrimary,
+    borderWidth: 1,
   },
 }); 

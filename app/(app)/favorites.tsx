@@ -1,17 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { fetchSavedArticles, fetchLikedArticles, toggleLike, toggleThumbsUp } from '../../store/articlesSlice';
 import ArticleItem from '../../components/ArticleItem';
+import TopHeader from '../../components/TopHeader';
 import * as Network from 'expo-network';
 import { WebView } from 'react-native-webview';
 import { useFocusEffect } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import ArticleModal from '../../components/ArticleModal';
+import { COLORS } from '../../assets/constants/colors';
+import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
 
 export default function FavoritesScreen() {
   const dispatch = useAppDispatch();
+  const router = useRouter();
   const { user } = useAppSelector((state) => state.auth);
   const { items, savedArticleIds, likedArticles } = useAppSelector((state) => state.articles);
   const [downloadedArticles, setDownloadedArticles] = useState<any[]>([]);
@@ -104,14 +109,25 @@ export default function FavoritesScreen() {
     setThumbsUpLoadingIds(ids => ids.filter(id => id !== article.article_id));
   };
 
+  const handleProfilePress = () => {
+    router.push('/(app)/profile');
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <TopHeader 
+        title="Favoris" 
+        onProfilePress={handleProfilePress}
+      />
+      
       {!isConnected && (
         <View style={styles.offlineBanner}>
           <Text style={styles.offlineText}>Vous êtes hors connexion. Rendez-vous dans l'onglet Favoris pour lire vos articles téléchargés.</Text>
         </View>
       )}
+      
       <FlatList
+        contentContainerStyle={styles.listContainer}
         ListHeaderComponent={
           <>
             <Text style={styles.sectionTitle}>📥 Téléchargés</Text>
@@ -150,19 +166,39 @@ export default function FavoritesScreen() {
         )}
         ListEmptyComponent={loading ? <ActivityIndicator /> : null}
       />
+      
       <ArticleModal
         visible={!!selectedArticle}
         article={selectedArticle}
         onClose={() => { setSelectedArticle(null); setModalType(null); }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  sectionTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 20, marginLeft: 16 },
-  emptyText: { color: '#888', marginLeft: 16, marginBottom: 10 },
-  offlineBanner: { backgroundColor: '#FFD600', padding: 10 },
-  offlineText: { color: '#333', textAlign: 'center' },
+  container: { flex: 1, backgroundColor: COLORS.backgroundPrimary },
+  listContainer: {
+    paddingBottom: 100, // Space for glassmorphism navbar
+  },
+  sectionTitle: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    marginTop: 20, 
+    marginLeft: 16,
+    color: COLORS.textPrimary,
+  },
+  emptyText: { 
+    color: COLORS.textSecondary, 
+    marginLeft: 16, 
+    marginBottom: 10 
+  },
+  offlineBanner: { 
+    backgroundColor: '#FFD600', 
+    padding: 10 
+  },
+  offlineText: { 
+    color: '#333', 
+    textAlign: 'center' 
+  },
 }); 

@@ -232,7 +232,7 @@ export default function LoginScreen() {
           onPress={handleLogin}
           disabled={!email || !password || loading}
         >
-          {loading ? (
+        {loading ? (
             <ActivityIndicator color="#111" />
           ) : (
             <Text style={{ color: "#121212" }}>se connecter</Text>
@@ -558,4 +558,4 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(17,17,17,0.95)",
     alignItems: "center",
   },
-});
+}); 

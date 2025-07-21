@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { 
   fetchArticles, 
@@ -31,6 +32,7 @@ import {
 import FilterHeader from '../../components/FilterHeader';
 import ArticleItem from '../../components/ArticleItem'
 import ArticleModal from '../../components/ArticleModal';
+import TopHeader from '../../components/TopHeader';
 import { Article } from '../../types';
 import { FONTS, FONT_SIZES, LINE_HEIGHTS } from '../../assets/constants/fonts';
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from '../../assets/constants/dimensions';
@@ -43,6 +45,7 @@ type ListItem = string | Article;
 
 export default function ArticlesScreen() {
   const dispatch = useAppDispatch();
+  const router = useRouter();
   const { 
     items, 
     loadingItems,
@@ -231,6 +234,10 @@ export default function ArticlesScreen() {
     dispatch(setSelectedGrade(newGrade));
   };
 
+  const handleProfilePress = () => {
+    router.push('/(app)/profile');
+  };
+
   if (errorItems) {
     return (
       <View style={styles.centerContainer}>
@@ -245,10 +252,12 @@ export default function ArticlesScreen() {
     : [];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.fixedHeader}>
-        <Text style={styles.fixedHeaderText}>Les Articles</Text>
-      </View>
+    <View style={styles.container}>
+      <TopHeader 
+        title="Les Articles" 
+        onProfilePress={handleProfilePress}
+      />
+      
       <FilterHeader
         disciplines={disciplineOptions}
         subDisciplines={subDisciplineOptions}
@@ -313,6 +322,7 @@ export default function ArticlesScreen() {
         keyExtractor={(item) => typeof item === 'string' ? item : (item as Article).article_id.toString()}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
+        contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
@@ -336,7 +346,7 @@ export default function ArticlesScreen() {
         article={selectedArticle}
         onClose={closeArticleModal}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -345,15 +355,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.backgroundPrimary,
   } as ViewStyle,
-  fixedHeader: { padding: 15, paddingTop: Platform.OS === 'ios' ? 20 : 15, backgroundColor: COLORS.headerBackground } as ViewStyle,
-  fixedHeaderText: { 
-    fontSize: FONT_SIZES['2xl'],
-    fontFamily: FONTS.sans.bold,
-    textAlign: 'left',
-    textTransform: 'uppercase',
-    fontWeight: '700',
-    color: COLORS.headerText,
-  } as TextStyle,
+  listContainer: {
+    paddingBottom: 100, // Space for glassmorphism navbar
+  } as ViewStyle,
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -389,12 +393,12 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
     paddingTop: SCREEN_HEIGHT * 0.04,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.backgroundModal,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: COLORS.black,
         shadowOffset: { width: 0, height: -3 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -410,7 +414,7 @@ const styles = StyleSheet.create({
     left: SCREEN_WIDTH * 0.03,
     zIndex: 1,
     padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: COLORS.backgroundSecondary,
     borderRadius: 20,
   } as ViewStyle,
   modalScroll: {
@@ -422,18 +426,19 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.serifDisplay.bold,
     marginBottom: 8,
     lineHeight: LINE_HEIGHTS['2xl'],
+    color: COLORS.textPrimary,
   } as TextStyle,
   modalJournal: {
     fontSize: FONT_SIZES.base,
     fontFamily: FONTS.sans.regular,
-    color: '#666',
+    color: COLORS.textSecondary,
     marginBottom: 16,
   } as TextStyle,
   modalContentText: {
     fontSize: FONT_SIZES.base,
     fontFamily: FONTS.sans.regular,
     lineHeight: LINE_HEIGHTS.base,
-    color: '#333',
+    color: COLORS.textPrimary,
     marginBottom: 16,
   } as TextStyle,
   articleMeta: {
@@ -449,7 +454,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.sans.regular,
-    color: '#666',
+    color: COLORS.textSecondary,
   } as TextStyle,
   articleStats: {
     flexDirection: 'row',
@@ -464,10 +469,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.sans.regular,
-    color: '#666',
+    color: COLORS.textSecondary,
   } as TextStyle,
   articleLink: {
-    color: '#007AFF',
+    color: COLORS.textLink,
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.sans.bold,
     textDecorationLine: 'underline',
@@ -489,17 +494,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.borderPrimary,
     marginHorizontal: 4,
-    backgroundColor: COLORS.backgroundPrimary,
+    backgroundColor: COLORS.backgroundSecondary,
   },
   toggleButtonActive: {
-    backgroundColor: '#FFF9C4', // Jaune pâle pour l'actif
-    borderColor: '#FFD600',
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    borderColor: COLORS.buttonBackgroundPrimary,
   },
   toggleButtonText: {
     color: COLORS.textSecondary,
     fontWeight: 'bold',
   },
   toggleButtonTextActive: {
-    color: COLORS.textPrimary,
+    color: COLORS.buttonTextPrimary,
   },
 }); 

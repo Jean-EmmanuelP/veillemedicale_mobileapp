@@ -24,6 +24,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { COLORS } from '../../assets/constants/colors';
 import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
 import NotificationService from '../../services/NotificationService';
+import TopHeader from '../../components/TopHeader';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -613,6 +614,10 @@ export default function ProfileScreen() {
     </Modal>
   );
 
+  const handleBackPress = () => {
+    router.back();
+  };
+
   if (loading && !profile) {
     return (
       <View style={styles.loadingContainer}>
@@ -622,12 +627,14 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <TopHeader 
+        title="Mon compte" 
+        onProfilePress={handleBackPress}
+        onTitlePress={handleAdminTitlePress}
+      />
+      
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <TouchableOpacity onPress={handleAdminTitlePress} activeOpacity={0.7}>
-          <Text style={styles.title}>Mon compte</Text>
-        </TouchableOpacity>
-
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
@@ -900,7 +907,7 @@ export default function ProfileScreen() {
       {renderNotificationModal()}
       {renderDeleteAccountModal()}
       {renderAdminModal()}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -914,7 +921,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 0 : 20,
+    paddingBottom: 120, // Extra space for glassmorphism navbar
   },
   loadingContainer: {
     flex: 1,

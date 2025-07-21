@@ -1,49 +1,51 @@
 export const COLORS = {
-  // Core Palette (Perplexity-inspired Black & White)
+  // Core Palette (Dark Theme - Black & White)
   white: '#FFFFFF',
   black: '#000000',
   
   // Backgrounds
-  backgroundPrimary: '#FFFFFF',       // Main app background
-  backgroundSecondary: '#F5F5F5',     // Subtle contrast, like cards or dividers
-  backgroundModal: '#FFFFFF',         // Modal backgrounds
+  backgroundPrimary: '#000000',       // Main app background (black)
+  backgroundSecondary: '#181818',     // Subtle contrast, like cards or dividers (dark gray)
+  backgroundModal: '#000000',         // Modal backgrounds (black)
 
   // Text
-  textPrimary: '#000000',             // Primary text (most content)
-  textSecondary: '#555555',           // Lighter text for less emphasis
-  textOnPrimaryButton: '#FFFFFF',     // Text on dark buttons
-  textOnLightBackground: '#000000',   // General text on white/light backgrounds
-  textPlaceholder: '#A0A0A0',         // Placeholder text in inputs
-  textLink: '#000000',                // Links can be black, relying on underline or context
+  textPrimary: '#FFFFFF',             // Primary text (white)
+  textSecondary: '#AAAAAA',           // Lighter text for less emphasis (light gray)
+  textOnPrimaryButton: '#000000',     // Text on light buttons (black on white)
+  textOnLightBackground: '#FFFFFF',   // General text on dark backgrounds (white)
+  textPlaceholder: '#666666',         // Placeholder text in inputs (medium gray)
+  textLink: '#FFFFFF',                // Links can be white, relying on underline or context
 
   // Borders & Dividers
-  borderPrimary: '#E0E0E0',           // Light borders
-  borderInput: '#CCCCCC',             // Input field borders
+  borderPrimary: '#333333',           // Dark borders
+  borderInput: '#444444',             // Input field borders
 
   // Icons
-  iconPrimary: '#000000',             // Main icons
-  iconSecondary: '#777777',           // Less prominent icons
+  iconPrimary: '#FFFFFF',             // Main icons (white)
+  iconSecondary: '#AAAAAA',           // Less prominent icons (light gray)
 
   // Buttons & Interactive Elements
-  buttonBackgroundPrimary: '#000000', // Primary buttons (black background)
-  buttonBackgroundSecondary: '#EFEFEF',// Secondary/ghost buttons (light gray background)
-  buttonTextPrimary: '#FFFFFF',       // Text on primary (black) buttons
-  buttonTextSecondary: '#000000',     // Text on secondary (light gray) buttons
+  buttonBackgroundPrimary: '#FFFFFF', // Primary buttons (white background)
+  buttonBackgroundSecondary: '#181818',// Secondary/ghost buttons (dark gray background)
+  buttonTextPrimary: '#000000',       // Text on primary (white) buttons
+  buttonTextSecondary: '#FFFFFF',     // Text on secondary (dark gray) buttons
   
   // States
-  error: '#D32F2F',                   // Keep a distinct error color for usability
-  errorBackground: '#FFEBEE',         // Light red background for error states
-  errorText: '#D32F2F',               // Red text for errors
-  success: '#388E3C',                 // Keep a distinct success color for usability
-  disabled: '#BDBDBD',                // For disabled elements
+  error: '#FF6B6B',                   // Slightly softer red for dark theme
+  errorBackground: '#2D1B1B',         // Dark red background for error states
+  errorText: '#FF6B6B',               // Red text for errors
+  success: '#4CAF50',                 // Keep green for success
+  successBackground: '#1B2D1B',       // Dark green background for success states
+  successText: '#4CAF50',             // Green text for success
+  disabled: '#555555',                // For disabled elements
 
-  // Specific UI elements if needed
-  tabBarBackground: '#FFFFFF',
-  tabBarActiveTint: '#000000',
-  tabBarInactiveTint: '#777777',
+  // Specific UI elements
+  tabBarBackground: '#000000',
+  tabBarActiveTint: '#FFFFFF',
+  tabBarInactiveTint: '#AAAAAA',
 
-  headerBackground: '#FFFFFF',
-  headerText: '#000000',
+  headerBackground: '#000000',
+  headerText: '#FFFFFF',
 
   // You can add more as we go through the components
 } as const; 

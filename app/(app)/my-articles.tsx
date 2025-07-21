@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { 
   fetchArticles, 
@@ -30,6 +31,7 @@ import {
 import FilterHeader from '../../components/FilterHeader';
 import ArticleItem from '../../components/ArticleItem';
 import ArticleModal from '../../components/ArticleModal';
+import TopHeader from '../../components/TopHeader';
 import { Article } from '../../types';
 import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
 import { COLORS } from '../../assets/constants/colors';
@@ -41,6 +43,7 @@ type MyListItem = string | Article;
 
 export default function MyArticlesScreen() {
   const dispatch = useAppDispatch();
+  const router = useRouter();
   const { 
     myArticles,
     loadingMyArticles,
@@ -176,6 +179,10 @@ export default function MyArticlesScreen() {
   const openArticleModal = (article: Article) => { setSelectedArticle(article); setModalVisible(true); };
   const closeArticleModal = () => { setModalVisible(false); setSelectedArticle(null); };
 
+  const handleProfilePress = () => {
+    router.push('/(app)/profile');
+  };
+
   if (errorMyArticles) return <View style={styles.centerContainer}><Text style={styles.errorText}>{errorMyArticles}</Text></View>;
 
   const disciplineFilterOptions = ['all', ...disciplines.map(d => d.name)];
@@ -188,10 +195,12 @@ export default function MyArticlesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.fixedHeader}>
-        <Text style={styles.fixedHeaderText}>Mes Articles</Text>
-      </View>
+    <View style={styles.container}>
+      <TopHeader 
+        title="Mes Articles" 
+        onProfilePress={handleProfilePress}
+      />
+      
       {/* Toggle filter */}
       <View style={{ flexDirection: 'row', justifyContent: 'center', marginVertical: 10 }}>
         <TouchableOpacity
@@ -213,6 +222,7 @@ export default function MyArticlesScreen() {
           <Text style={[styles.toggleButtonText, filterType === 'recommandations' && styles.toggleButtonTextActive]}>Recommandations</Text>
         </TouchableOpacity>
       </View>
+      
       <FilterHeader
         disciplines={disciplineFilterOptions}
         subDisciplines={subDisciplineFilterOptions}
@@ -251,6 +261,7 @@ export default function MyArticlesScreen() {
         keyExtractor={(item) => typeof item === 'string' ? item : (item as Article).article_id.toString()}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
+        contentContainerStyle={styles.listContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         ListFooterComponent={loadingMyArticles && !refreshing ? <ActivityIndicator size="large" color={COLORS.iconPrimary} style={styles.loader} /> : null}
         ListEmptyComponent={!loadingMyArticles && !refreshing && myArticles.length === 0 ?
@@ -259,7 +270,7 @@ export default function MyArticlesScreen() {
       />
 
       <ArticleModal visible={modalVisible} article={selectedArticle} onClose={closeArticleModal} />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -268,19 +279,9 @@ const styles = StyleSheet.create({
     flex: 1, 
     backgroundColor: COLORS.backgroundPrimary
   } as ViewStyle,
-  fixedHeader: { 
-    padding: 15, 
-    paddingTop: Platform.OS === 'ios' ? 20 : 15, 
-    backgroundColor: COLORS.headerBackground,
+  listContainer: {
+    paddingBottom: 100, // Space for glassmorphism navbar
   } as ViewStyle,
-  fixedHeaderText: { 
-    fontSize: FONT_SIZES['2xl'],
-    fontFamily: FONTS.sans.bold,
-    textAlign: 'left',
-    textTransform: 'uppercase',
-    fontWeight: '700',
-    color: COLORS.headerText,
-  } as TextStyle,
   centerContainer: { 
     flex: 1, 
     justifyContent: 'center', 
@@ -326,17 +327,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.borderPrimary,
     marginHorizontal: 4,
-    backgroundColor: COLORS.backgroundPrimary,
+    backgroundColor: COLORS.backgroundSecondary,
   },
   toggleButtonActive: {
-    backgroundColor: '#FFF9C4', // Jaune pâle pour l'actif
-    borderColor: '#FFD600',
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    borderColor: COLORS.buttonBackgroundPrimary,
   },
   toggleButtonText: {
     color: COLORS.textSecondary,
     fontWeight: 'bold',
   },
   toggleButtonTextActive: {
-    color: COLORS.textPrimary,
+    color: COLORS.buttonTextPrimary,
   },
 }); 

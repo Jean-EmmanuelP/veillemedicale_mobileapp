@@ -6,6 +6,7 @@ import { RootState } from '../../store';
 import { View, Text, StyleSheet } from 'react-native';
 import React, { useEffect } from 'react';
 import { fetchProfile } from '../../store/profileSlice';
+import { BlurView } from 'expo-blur';
 
 // Helper component for the avatar
 const UserAvatar = ({ color }: { color: string }) => {
@@ -13,16 +14,15 @@ const UserAvatar = ({ color }: { color: string }) => {
 
   if (profile?.first_name) {
     return (
-      <View style={styles.avatarCircle}>
-        <Text style={styles.avatarInitial}>
+      <View style={[styles.avatarCircle, { borderColor: color }]}>
+        <Text style={[styles.avatarInitial, { color }]}>
           {profile.first_name.charAt(0).toUpperCase()}
         </Text>
       </View>
     );
   }
 
-  // Fallback icon if no user data or avatar/firstName
-  // return <FontAwesome name="user" size={24} color={color} />;
+  return <FontAwesome name="user" size={24} color={color} />;
 };
 
 export default function AppLayout() {
@@ -42,12 +42,33 @@ export default function AppLayout() {
         headerShown: false, 
         tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: COLORS.tabBarBackground,
-          borderTopWidth: 1,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: 'rgba(24, 24, 24, 0.8)',
+          borderTopWidth: 0.5,
           borderTopColor: COLORS.borderPrimary,
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          height: 80,
+          paddingBottom: 20,
+          paddingTop: 10,
         },
         tabBarActiveTintColor: COLORS.tabBarActiveTint,
         tabBarInactiveTintColor: COLORS.tabBarInactiveTint,
+        tabBarBackground: () => (
+          <BlurView 
+            intensity={40} 
+            tint="dark" 
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              overflow: 'hidden',
+            }} 
+          />
+        ),
       }}
     >
       <Tabs.Screen
@@ -99,12 +120,13 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(128, 128, 128, 0.3)',
+    borderColor: COLORS.borderPrimary,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: COLORS.backgroundSecondary,
   },
   avatarInitial: {
-    color: 'grey',
+    color: COLORS.textPrimary,
     fontSize: 14,
     fontWeight: 'bold',
   },
