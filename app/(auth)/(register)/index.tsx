@@ -17,9 +17,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
-import { supabase } from "../../lib/supabase";
-import { FONTS, FONT_SIZES } from "../../assets/constants/fonts";
-import LoaderS from "../../components/LoaderS";
+import { supabase } from "../../../lib/supabase";
+import { FONTS, FONT_SIZES } from "../../../assets/constants/fonts";
+import LoaderS from "../../../components/LoaderS";
 
 const { width, height } = Dimensions.get("window");
 
@@ -53,6 +53,7 @@ export default function RegisterScreen() {
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  
   const flatListRef = useRef<FlatList>(null);
   const passwordAnim = useRef(new Animated.Value(0)).current;
   const [showBlur, setShowBlur] = useState(false);
@@ -221,18 +222,23 @@ export default function RegisterScreen() {
     }
   }, [showUserExistsError]);
 
-  const passwordFade = passwordAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-
   const handleNext = () => {
     if (step === 1 && email) setStep(2);
+    else if (step === 2 && password) {
+      // Navigate to preferences page with email and password as params
+      router.push({
+        pathname: '/(auth)/(register)/preferences',
+        params: { email, password }
+      });
+    }
   };
+  
   const handleBack = () => {
     if (step === 2) setStep(1);
   };
 
+  // TODO: This function will be modified later to handle auth creation only
+  // For now, keeping the original handleRegister but commenting what should change
   const handleRegister = async () => {
     setError("");
     if (!email || !password) {
@@ -279,7 +285,7 @@ export default function RegisterScreen() {
         setLoading(false);
         return;
       }
-
+      
       // 2. Création du profil utilisateur
       const firstName = email.split("@")[0];
       const profile = {
@@ -291,36 +297,36 @@ export default function RegisterScreen() {
         notification_frequency: "tous_les_jours",
         date_of_birth: null,
       };
-
+      
       const { error: profileError } = await supabase
         .from("user_profiles")
         .insert(profile);
-
+        
       if (profileError) {
         console.error("Profile creation error:", profileError);
         setError("Erreur lors de la sauvegarde du profil utilisateur.");
         setLoading(false);
         return;
       }
-
+      
       // 3. Envoi de l'email de bienvenue (fire-and-forget)
       try {
         const response = await fetch(
           "https://etxelhjnqbrgwuitltyk.supabase.co/functions/v1/send-welcome-email",
           {
             method: "POST",
-            headers: {
+          headers: {
               Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0eGVsaGpucWJyZ3d1aXRsdHlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA2OTE5NzAsImV4cCI6MjA1NjI2Nzk3MH0.EvaK9bCSYaBVaVOIgakKTAVoM8UrDYg2HX7Z-iyWoD4`,
               "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              user_id: data.user.id,
-              email: email,
+          },
+          body: JSON.stringify({ 
+            user_id: data.user.id, 
+            email: email, 
               first_name: firstName,
-            }),
+          }),
           }
         );
-
+        
         if (!response.ok) {
           console.error(
             "Welcome email error:",
@@ -431,7 +437,7 @@ export default function RegisterScreen() {
                   gap: Dimensions.get("window").width * 0.04,
                 }}
               >
-                <TextInput
+              <TextInput
                   style={[
                     styles.inputBig,
                     {
@@ -488,7 +494,7 @@ export default function RegisterScreen() {
                       zIndex: 2,
                     }}
                     onPress={() => setEmail("")}
-                  >
+              >
                     <Ionicons name="close" size={22} color="#888" />
                   </TouchableOpacity>
                 )}
@@ -517,8 +523,8 @@ export default function RegisterScreen() {
                   disabled={!isEmailValid}
                 >
                   <Ionicons name="arrow-forward" size={22} color={isEmailValid ? "#111" : "grey"} />
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
+            </View>
               {/* Message d'erreur */}
               {showEmailError && (
                 <Animated.View
@@ -568,7 +574,7 @@ export default function RegisterScreen() {
                   gap: Dimensions.get("window").width * 0.04,
                 }}
               >
-                <TextInput
+              <TextInput
                   style={[
                     styles.inputBig,
                     {
@@ -603,14 +609,14 @@ export default function RegisterScreen() {
                   onSubmitEditing={() => {
                     if (isPasswordValid) {
                       setShowBlur(false);
-                      handleRegister();
+                      handleNext();
                     } else {
                       setPasswordTouched(true);
                     }
                   }}
-                />
+              />
                 {/* Icône œil show/hide */}
-                <TouchableOpacity
+              <TouchableOpacity 
                   style={{
                     position: "absolute",
                     right: Dimensions.get("window").width * 0.22,
@@ -623,13 +629,13 @@ export default function RegisterScreen() {
                     zIndex: 2,
                   }}
                   onPress={() => setShowPassword((v) => !v)}
-                >
-                  <Ionicons
+              >
+                <Ionicons 
                     name={showPassword ? "eye-off" : "eye"}
-                    size={20}
+                  size={20} 
                     color="#888"
-                  />
-                </TouchableOpacity>
+                />
+              </TouchableOpacity>
                 {/* Bouton flèche dans un cercle, à droite */}
                 <TouchableOpacity
                   style={{
@@ -647,7 +653,7 @@ export default function RegisterScreen() {
                   onPress={() => {
                     if (isPasswordValid) {
                       setShowBlur(false);
-                      handleRegister();
+                      handleNext();
                     } else {
                       setPasswordTouched(true);
                     }
@@ -692,6 +698,7 @@ export default function RegisterScreen() {
               )}
             </>
           )}
+          
         </View>
       </KeyboardAvoidingView>
       <View

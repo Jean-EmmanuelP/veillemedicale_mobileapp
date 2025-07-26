@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   Platform,
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import Modal from 'react-native-modal';
+import {
+  BottomSheetModal,
+  BottomSheetView,
+  BottomSheetFlatList,
+  BottomSheetBackdrop,
+} from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, FONT_SIZES } from '../assets/constants/fonts';
 import { COLORS } from '../assets/constants/colors';
@@ -44,9 +48,11 @@ export default function FilterHeader({
   onGradeChange,
   loadingSubDisciplines,
 }: FilterHeaderProps) {
-  const [showDisciplineModal, setShowDisciplineModal] = useState(false);
-  const [showSubDisciplineModal, setShowSubDisciplineModal] = useState(false);
-  const [showGradeModal, setShowGradeModal] = useState(false);
+  const disciplineModalRef = useRef<BottomSheetModal>(null);
+  const subDisciplineModalRef = useRef<BottomSheetModal>(null);
+  const gradeModalRef = useRef<BottomSheetModal>(null);
+
+  const snapPoints = useMemo(() => ['50%'], []);
 
   const selectedDisciplineName = selectedDiscipline === 'all' 
     ? 'Toutes les disciplines' 
@@ -61,122 +67,83 @@ export default function FilterHeader({
 
   const canShowSubDisciplines = selectedDiscipline !== 'all' && subDisciplines && subDisciplines.length > 0;
 
-  const renderDisciplineModal = () => (
-    <Modal
-      isVisible={showDisciplineModal}
-      style={styles.modalContainer}
-      onBackdropPress={() => setShowDisciplineModal(false)}
-      animationIn="slideInUp"
-      animationOut="slideOutDown"
-      useNativeDriverForBackdrop
-    >
-      <View style={styles.modalContent}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Disciplines</Text>
-          <TouchableOpacity onPress={() => setShowDisciplineModal(false)}>
-            <Ionicons name="close" size={24} color={COLORS.iconPrimary} />
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          data={disciplines}
-          keyExtractor={(item) => `discipline-${item}`}
-          renderItem={({ item }) => (
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+      />
+    ),
+    []
+  );
+
+  const handleDisciplineSelect = useCallback((item: string) => {
+    setTimeout(() => {
+      if (selectedDiscipline !== item) {
+        onDisciplineChange(item);
+      }
+      disciplineModalRef.current?.dismiss();
+    }, 100);
+  }, [selectedDiscipline, onDisciplineChange]);
+
+  const handleSubDisciplineSelect = useCallback((item: string) => {
+    setTimeout(() => {
+      if (selectedSubDiscipline !== item) {
+        onSubDisciplineChange(item);
+      }
+      subDisciplineModalRef.current?.dismiss();
+    }, 100);
+  }, [selectedSubDiscipline, onSubDisciplineChange]);
+
+  const handleGradeSelect = useCallback((item: { value: string | null; label: string }) => {
+    setTimeout(() => {
+      if (selectedGrade !== item.value) {
+        onGradeChange(item.value);
+      }
+      gradeModalRef.current?.dismiss();
+    }, 100);
+  }, [selectedGrade, onGradeChange]);
+
+  const renderDisciplineItem = useCallback(({ item }: { item: string }) => (
             <TouchableOpacity
               style={styles.modalItem}
-              onPress={() => {
-                onDisciplineChange(item);
-                setShowDisciplineModal(false);
-              }}
+      onPress={() => handleDisciplineSelect(item)}
             >
               <Text style={[
                 styles.modalItemText,
                 selectedDiscipline === item && styles.modalItemTextSelected
               ]}>{item === 'all' ? 'Toutes les disciplines' : item}</Text>
             </TouchableOpacity>
-          )}
-        />
-      </View>
-    </Modal>
-  );
+  ), [selectedDiscipline, handleDisciplineSelect]);
 
-  const renderSubDisciplineModal = () => (
-    <Modal
-      isVisible={showSubDisciplineModal}
-      style={styles.modalContainer}
-      onBackdropPress={() => setShowSubDisciplineModal(false)}
-      animationIn="slideInUp"
-      animationOut="slideOutDown"
-      useNativeDriverForBackdrop
-    >
-      <View style={styles.modalContent}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Sous-disciplines</Text>
-          <TouchableOpacity onPress={() => setShowSubDisciplineModal(false)}>
-            <Ionicons name="close" size={24} color={COLORS.iconPrimary} />
-          </TouchableOpacity>
-        </View>
-        {loadingSubDisciplines ? (
-          <ActivityIndicator size="large" color={COLORS.iconPrimary} style={{marginVertical: 20}}/>
-        ) : (
-          <FlatList
-            data={['all', ...(subDisciplines || []).filter(sd => sd !== 'all')]}
-            keyExtractor={(item) => `subdiscipline-${item}`}
-            renderItem={({ item }) => (
+  const renderSubDisciplineItem = useCallback(({ item }: { item: string }) => (
               <TouchableOpacity
                 style={styles.modalItem}
-                onPress={() => {
-                  onSubDisciplineChange(item);
-                  setShowSubDisciplineModal(false);
-                }}
+      onPress={() => handleSubDisciplineSelect(item)}
               >
                 <Text style={[
                   styles.modalItemText,
                   selectedSubDiscipline === item && styles.modalItemTextSelected
                 ]}>{item === 'all' ? 'Toutes les sous-disciplines' : item}</Text>
               </TouchableOpacity>
-            )}
-          />
-        )}
-      </View>
-    </Modal>
-  );
+  ), [selectedSubDiscipline, handleSubDisciplineSelect]);
 
-  const renderGradeModal = () => (
-    <Modal
-      isVisible={showGradeModal}
-      style={styles.modalContainer}
-      onBackdropPress={() => setShowGradeModal(false)}
-      animationIn="slideInUp"
-      animationOut="slideOutDown"
-      useNativeDriverForBackdrop
-    >
-      <View style={styles.modalContent}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Grades</Text>
-          <TouchableOpacity onPress={() => setShowGradeModal(false)}>
-            <Ionicons name="close" size={24} color={COLORS.iconPrimary} />
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          data={gradeOptions}
-          keyExtractor={(item) => `grade-${item.value}`}
-          renderItem={({ item }) => (
+  const renderGradeItem = useCallback(({ item }: { item: { value: string | null; label: string } }) => (
             <TouchableOpacity
               style={styles.modalItem}
-              onPress={() => {
-                onGradeChange(item.value);
-                setShowGradeModal(false);
-              }}
+      onPress={() => handleGradeSelect(item)}
             >
               <Text style={[
                 styles.modalItemText,
                 selectedGrade === item.value && styles.modalItemTextSelected
               ]}>{item.label}</Text>
             </TouchableOpacity>
-          )}
-        />
-      </View>
-    </Modal>
+  ), [selectedGrade, handleGradeSelect]);
+
+  const subDisciplineData = useMemo(() => 
+    ['all', ...(subDisciplines || []).filter(sd => sd !== 'all')], 
+    [subDisciplines]
   );
 
   return (
@@ -184,7 +151,7 @@ export default function FilterHeader({
       <View style={styles.filterContainer}>
         <TouchableOpacity
           style={styles.filterButton}
-          onPress={() => setShowDisciplineModal(true)}
+          onPress={() => disciplineModalRef.current?.present()}
         >
           <Text style={styles.filterButtonText} numberOfLines={1}>{selectedDisciplineName}</Text>
           <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
@@ -195,7 +162,7 @@ export default function FilterHeader({
             style={[styles.filterButton, (!subDisciplines || subDisciplines.length === 0) && !loadingSubDisciplines && styles.filterButtonDisabled]}
             onPress={() => {
               if (canShowSubDisciplines || loadingSubDisciplines) {
-                setShowSubDisciplineModal(true);
+                subDisciplineModalRef.current?.present();
               }
             }}
             disabled={!canShowSubDisciplines && !loadingSubDisciplines}
@@ -211,16 +178,85 @@ export default function FilterHeader({
 
         <TouchableOpacity 
           style={styles.filterButton}
-          onPress={() => setShowGradeModal(true)}
+          onPress={() => gradeModalRef.current?.present()}
         >
           <Text style={styles.filterButtonText} numberOfLines={1}>{selectedGradeLabel}</Text>
           <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
         </TouchableOpacity>
       </View>
 
-      {renderDisciplineModal()}
-      {renderSubDisciplineModal()} 
-      {renderGradeModal()}
+      {/* Discipline Modal */}
+      <BottomSheetModal
+        ref={disciplineModalRef}
+        index={0}
+        snapPoints={snapPoints}
+        backdropComponent={renderBackdrop}
+      >
+        <BottomSheetView style={styles.modalInnerContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Disciplines</Text>
+            <TouchableOpacity onPress={() => disciplineModalRef.current?.dismiss()}>
+              <Ionicons name="close" size={24} color={COLORS.iconPrimary} />
+            </TouchableOpacity>
+          </View>
+          <BottomSheetFlatList
+            data={disciplines}
+            keyExtractor={(item) => `discipline-${item}`}
+            renderItem={renderDisciplineItem}
+            contentContainerStyle={styles.modalScrollView}
+          />
+        </BottomSheetView>
+      </BottomSheetModal>
+
+      {/* Sub-discipline Modal */}
+      <BottomSheetModal
+        ref={subDisciplineModalRef}
+        index={0}
+        snapPoints={snapPoints}
+        backdropComponent={renderBackdrop}
+      >
+        <BottomSheetView style={styles.modalInnerContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Sous-disciplines</Text>
+            <TouchableOpacity onPress={() => subDisciplineModalRef.current?.dismiss()}>
+              <Ionicons name="close" size={24} color={COLORS.iconPrimary} />
+            </TouchableOpacity>
+          </View>
+          {loadingSubDisciplines ? (
+            <ActivityIndicator size="large" color={COLORS.iconPrimary} style={{marginVertical: 20}}/>
+          ) : (
+            <BottomSheetFlatList
+              data={subDisciplineData}
+              keyExtractor={(item) => `subdiscipline-${item}`}
+              renderItem={renderSubDisciplineItem}
+              contentContainerStyle={styles.modalScrollView}
+            />
+          )}
+        </BottomSheetView>
+      </BottomSheetModal>
+
+      {/* Grade Modal */}
+      <BottomSheetModal
+        ref={gradeModalRef}
+        index={0}
+        snapPoints={snapPoints}
+        backdropComponent={renderBackdrop}
+      >
+        <BottomSheetView style={styles.modalInnerContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Grades</Text>
+            <TouchableOpacity onPress={() => gradeModalRef.current?.dismiss()}>
+              <Ionicons name="close" size={24} color={COLORS.iconPrimary} />
+            </TouchableOpacity>
+          </View>
+          <BottomSheetFlatList
+            data={gradeOptions}
+            keyExtractor={(item) => `grade-${item.value}`}
+            renderItem={renderGradeItem}
+            contentContainerStyle={styles.modalScrollView}
+          />
+        </BottomSheetView>
+      </BottomSheetModal>
     </SafeAreaView>
   );
 }
@@ -262,18 +298,12 @@ const styles = StyleSheet.create({
     flexShrink: 1, // Allow text to shrink if needed
     marginRight: 4, // Space before icon
   },
-  modalContainer: {
-    justifyContent: 'flex-end',
-    margin: 0,
-  },
-  modalContent: {
+  modalInnerContainer: {
     backgroundColor: COLORS.backgroundModal,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 10,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
-    maxHeight: '60%',
+    flex: 1,
+  },
+  modalScrollView: {
+    flexGrow: 1,
   },
   modalHeader: {
     flexDirection: 'row',

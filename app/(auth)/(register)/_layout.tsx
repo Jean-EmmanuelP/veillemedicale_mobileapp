@@ -1,34 +1,27 @@
 import { Stack } from 'expo-router';
 
 export const unstable_settings = {
-  initialRouteName: '(register)',
+  initialRouteName: 'index',
 };
 
-export default function AuthLayout() {
+export default function RegisterLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: 'white' },
-        animation: 'slide_from_right',
       }}
     >
       <Stack.Screen 
-        name="(register)" 
+        name="index" 
         options={{ 
           title: 'Inscription',
         }} 
       />
       <Stack.Screen 
-        name="(login)" 
+        name="preferences" 
         options={{ 
-          title: 'Connexion',
-        }} 
-      />
-      <Stack.Screen 
-        name="(legal)" 
-        options={{ 
-          title: 'Documents légaux',
+          title: 'Préférences',
         }} 
       />
     </Stack>

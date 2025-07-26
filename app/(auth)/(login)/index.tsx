@@ -20,14 +20,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from "expo-router";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
-import { supabase } from "../../lib/supabase";
-import { FONTS, FONT_SIZES, LINE_HEIGHTS } from "../../assets/constants/fonts";
+import { supabase } from "../../../lib/supabase";
+import { FONTS, FONT_SIZES, LINE_HEIGHTS } from "../../../assets/constants/fonts";
 import { useDispatch } from "react-redux";
-import { signIn } from "../../store/authSlice";
-import { AppDispatch } from "../../store";
+import { signIn } from "../../../store/authSlice";
+import { AppDispatch } from "../../../store";
 import { BlurView } from "expo-blur";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import ForgotPasswordModal from "../../components/ForgotPasswordModal";
+import ForgotPasswordModal from "../../../components/ForgotPasswordModal";
 
 const { width, height } = Dimensions.get("window");
 
@@ -264,7 +264,7 @@ export default function LoginScreen() {
         {/* Footer pill "pas encore inscrit ? créer un compte" */}
         <View style={{ alignItems: "center" }}>
           <TouchableOpacity
-            onPress={() => router.push("/(auth)/register")}
+            onPress={() => router.push("/(auth)/(register)")}
             style={{
               backgroundColor: "#000",
               borderRadius: 24,

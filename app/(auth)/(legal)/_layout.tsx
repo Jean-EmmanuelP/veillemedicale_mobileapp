@@ -1,34 +1,33 @@
 import { Stack } from 'expo-router';
 
 export const unstable_settings = {
-  initialRouteName: '(register)',
+  initialRouteName: 'terms-of-use',
 };
 
-export default function AuthLayout() {
+export default function LegalLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: 'white' },
-        animation: 'slide_from_right',
       }}
     >
       <Stack.Screen 
-        name="(register)" 
+        name="terms-of-use" 
         options={{ 
-          title: 'Inscription',
+          title: 'Conditions d\'utilisation',
         }} 
       />
       <Stack.Screen 
-        name="(login)" 
+        name="privacy-policy" 
         options={{ 
-          title: 'Connexion',
+          title: 'Politique de confidentialité',
         }} 
       />
       <Stack.Screen 
-        name="(legal)" 
+        name="company-group" 
         options={{ 
-          title: 'Documents légaux',
+          title: 'Groupe de sociétés',
         }} 
       />
     </Stack>

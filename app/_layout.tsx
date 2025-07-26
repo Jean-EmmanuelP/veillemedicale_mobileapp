@@ -10,6 +10,9 @@ import { setUser, setSession } from '../store/authSlice';
 import { ActivityIndicator, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import NotificationService from '../services/NotificationService';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import 'react-native-reanimated';
 import 'react-native-url-polyfill/auto';
 
 // Import useFonts and the specific Roboto fonts we need
@@ -168,7 +171,11 @@ export default function RootLayout() {
   return (
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
-        <NavigationLayout />
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <BottomSheetModalProvider>
+            <NavigationLayout />
+          </BottomSheetModalProvider>
+        </GestureHandlerRootView>
       </PersistGate>
     </Provider>
   );
