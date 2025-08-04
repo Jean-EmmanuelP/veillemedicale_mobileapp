@@ -20,19 +20,20 @@ import { fetchProfile, updateProfile, clearSaveSuccess } from '../store/profileS
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../assets/constants/colors';
 import { FONTS, FONT_SIZES } from '../assets/constants/fonts';
 import NotificationService from '../services/NotificationService';
 import { BlurView } from 'expo-blur';
 import { renderGradeStars } from '../utils/gradeStars';
+import LinkGuestAccountSection from '../components/LinkGuestAccountSection';
+import ModernDatePicker from '../components/ModernDatePicker';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export default function ProfileScreen() {
   const dispatch = useAppDispatch();
   const router = useRouter();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, session, isAnonymous, linkStep } = useAppSelector((state) => state.auth);
   const {
     profile,
     loading,
@@ -51,12 +52,14 @@ export default function ProfileScreen() {
   const [specialty, setSpecialty] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [notificationFrequency, setNotificationFrequency] = useState('');
+  const [minimumGradeNotification, setMinimumGradeNotification] = useState('');
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [currentSubscriptionsSet, setCurrentSubscriptionsSet] = useState<Set<string>>(new Set());
   const [openDisciplines, setOpenDisciplines] = useState<Set<number>>(new Set());
 
   // UI state
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showModernDatePicker, setShowModernDatePicker] = useState(false);
   const [showGradeInfo, setShowGradeInfo] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
@@ -74,41 +77,101 @@ export default function ProfileScreen() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (user?.id) {
+    console.log("--------------------------------")
+    console.log('👤 [PROFILE] user:', user);
+    console.log("--------------------------------")
+    // Ne pas charger le profil pour les utilisateurs anonymes
+    if (user?.id && !isAnonymous) {
+      console.log('📋 [PROFILE] Loading profile for permanent user:', {
+        userId: user.id,
+        email: user.email,
+        isAnonymous
+      });
       dispatch(fetchProfile(user.id));
+    } else if (user?.id && isAnonymous) {
+      console.log('👤 [PROFILE] Anonymous user detected, profile loading skipped:', {
+        userId: user.id,
+        email: user.email || 'No email (anonymous)',
+        isAnonymous
+      });
+    } else {
+      console.log('❌ [PROFILE] No user found or user not ready');
     }
-  }, [user?.id]);
+  }, [user?.id, isAnonymous]);
 
   useEffect(() => {
-    if (profile) {
+    // Ne mettre à jour les champs que pour les utilisateurs non-anonymes
+    if (profile && !isAnonymous) {
+      console.log('📝 [PROFILE] Updating form fields with profile data:', {
+        profileId: profile.id,
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        email: profile.email,
+        status: profile.status,
+        subscriptionsCount: profile.subscriptions?.length || 0,
+        minimumGradeNotification: profile.minimum_grade_notification
+      });
       setFirstName(profile.first_name || '');
       setLastName(profile.last_name || '');
       setStatus(profile.status || '');
       setSpecialty(profile.specialty || '');
       setDateOfBirth(profile.date_of_birth || '');
       setNotificationFrequency(profile.notification_frequency || 'tous_les_jours');
-      setSelectedGrades(profile.grade_preferences || []);
+      setMinimumGradeNotification(profile.minimum_grade_notification || '');
+      
+      // Auto-select grades based on minimum_grade_notification
+      if (profile.minimum_grade_notification) {
+        const autoSelectedGrades = getGradesFromMinimum(profile.minimum_grade_notification);
+        console.log('🎯 [PROFILE] Auto-selecting grades from minimum:', {
+          minimumGrade: profile.minimum_grade_notification,
+          selectedGrades: autoSelectedGrades
+        });
+        setSelectedGrades(autoSelectedGrades);
+      } else {
+        // Fallback to grade_preferences if minimum_grade_notification is not set
+        setSelectedGrades(profile.grade_preferences || []);
+      }
+    } else if (isAnonymous) {
+      console.log('👤 [PROFILE] Anonymous user - form fields update skipped');
     }
-  }, [profile]);
+  }, [profile, isAnonymous]);
 
   useEffect(() => {
-    // Convertir les abonnements en Set pour une recherche plus rapide
-    const subscriptionsSet = new Set(
-      currentSubscriptions.map(sub => 
-        sub.sub_discipline_id ? `s:${sub.sub_discipline_id}` : `d:${sub.discipline_id}`
-      )
-    );
-    setCurrentSubscriptionsSet(subscriptionsSet);
+    // Convertir les abonnements en Set pour une recherche plus rapide (seulement pour les utilisateurs non-anonymes)
+    if (!isAnonymous) {
+      const subscriptionsSet = new Set(
+        currentSubscriptions.map(sub => 
+          sub.sub_discipline_id ? `s:${sub.sub_discipline_id}` : `d:${sub.discipline_id}`
+        )
+      );
+      setCurrentSubscriptionsSet(subscriptionsSet);
 
-    // Ouvrir automatiquement les disciplines qui ont des sous-spécialités sélectionnées
-    const openDisciplinesSet = new Set<number>();
-    currentSubscriptions.forEach(sub => {
-      if (sub.discipline_id) {
-        openDisciplinesSet.add(sub.discipline_id);
-      }
-    });
-    setOpenDisciplines(openDisciplinesSet);
-  }, [currentSubscriptions]);
+      // Ouvrir automatiquement les disciplines qui ont des sous-spécialités sélectionnées
+      const openDisciplinesSet = new Set<number>();
+      currentSubscriptions.forEach(sub => {
+        if (sub.discipline_id) {
+          openDisciplinesSet.add(sub.discipline_id);
+        }
+      });
+      
+      // Aussi ouvrir les disciplines qui ont des sous-spécialités dans subscriptionsSet
+      disciplines.forEach(discipline => {
+        const hasSelectedSubSpecialties = discipline.sub_disciplines.some(subDisc =>
+          subscriptionsSet.has(`s:${subDisc.id}`)
+        );
+        if (hasSelectedSubSpecialties) {
+          openDisciplinesSet.add(discipline.id);
+        }
+      });
+      
+      console.log('📂 [PROFILE] Auto-opening disciplines with selected sub-specialties:', {
+        openDisciplines: Array.from(openDisciplinesSet),
+        subscriptions: Array.from(subscriptionsSet)
+      });
+      
+      setOpenDisciplines(openDisciplinesSet);
+    }
+  }, [currentSubscriptions, disciplines, isAnonymous]);
 
   useEffect(() => {
     if (saveSuccess) {
@@ -129,9 +192,8 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      dispatch(setUser(null));
-      dispatch(setSession(null));
-      router.replace('/(auth)');
+      // ✅ Suppression des dispatch manuels et de la redirection
+      // car l'onAuthStateChange dans _layout.tsx gère déjà tout automatiquement
     } catch (error) {
       Alert.alert('Erreur', 'Erreur lors de la déconnexion');
     }
@@ -196,6 +258,11 @@ export default function ProfileScreen() {
     });
 
     try {
+      console.log('💾 [PROFILE] Saving profile with minimum grade:', {
+        minimumGrade: minimumGradeNotification,
+        autoSelectedGrades: selectedGrades
+      });
+
       await dispatch(updateProfile({
         userId: user.id,
         profile: {
@@ -205,9 +272,10 @@ export default function ProfileScreen() {
           specialty,
           date_of_birth: dateOfBirth,
           notification_frequency: notificationFrequency,
+          minimum_grade_notification: minimumGradeNotification,
         },
         subscriptions,
-        gradePreferences: selectedGrades,
+        gradePreferences: selectedGrades, // Save the auto-calculated grades too
       })).unwrap();
 
       // Mettre à jour les préférences de notification
@@ -235,8 +303,16 @@ export default function ProfileScreen() {
   };
 
   const handleSendToAll = async () => {
+    // Protection : ne pas envoyer de notifications pour les utilisateurs anonymes
+    if (isAnonymous) {
+      console.log('👤 [PROFILE] handleSendToAll skipped for anonymous user');
+      Alert.alert('Erreur', 'Cette fonction n\'est pas disponible pour les comptes invités.');
+      return;
+    }
+
     setSending(true);
     try {
+      console.log('📧 [PROFILE] Fetching all users for admin broadcast...');
       // Récupérer tous les users
       const { data: users, error } = await supabase.from('user_profiles').select('id');
       if (error) throw error;
@@ -264,12 +340,20 @@ export default function ProfileScreen() {
   };
 
   const handleSendToUser = async () => {
+    // Protection : ne pas envoyer de notifications pour les utilisateurs anonymes
+    if (isAnonymous) {
+      console.log('👤 [PROFILE] handleSendToUser skipped for anonymous user');
+      Alert.alert('Erreur', 'Cette fonction n\'est pas disponible pour les comptes invités.');
+      return;
+    }
+
     if (!targetUserId) {
       Alert.alert('Erreur', 'Veuillez saisir un ID utilisateur');
       return;
     }
     setSending(true);
     try {
+      console.log('📧 [PROFILE] Sending notification to specific user:', targetUserId);
       await NotificationService.getInstance().sendNotificationViaEdge(
         targetUserId,
         notifTitle,
@@ -298,42 +382,114 @@ export default function ProfileScreen() {
     const newSubs = new Set(currentSubscriptionsSet);
     const discipline = disciplines.find(d => d.id === disciplineId);
     
+    console.log('🏥 [PROFILE] Main discipline change:', {
+      disciplineId,
+      disciplineName: discipline?.name,
+      isChecked,
+      currentSubs: Array.from(currentSubscriptionsSet)
+    });
+    
     if (isChecked) {
+      // Ajouter la spécialité principale
       newSubs.add(`d:${disciplineId}`);
+      // Ajouter TOUTES les sous-spécialités automatiquement
       discipline?.sub_disciplines.forEach(sub => {
         newSubs.add(`s:${sub.id}`);
       });
+      // Ouvrir automatiquement la section
       setOpenDisciplines(prev => new Set([...prev, disciplineId]));
     } else {
+      // Supprimer la spécialité principale
       newSubs.delete(`d:${disciplineId}`);
+      // Supprimer TOUTES les sous-spécialités
       discipline?.sub_disciplines.forEach(sub => {
         newSubs.delete(`s:${sub.id}`);
       });
     }
+    
+    console.log('🏥 [PROFILE] After main discipline change:', {
+      newSubs: Array.from(newSubs)
+    });
+    
     setCurrentSubscriptionsSet(newSubs);
   };
 
   const handleSubDisciplineChange = (subDisciplineId: number, disciplineId: number, isChecked: boolean) => {
     const newSubs = new Set(currentSubscriptionsSet);
+    const discipline = disciplines.find(d => d.id === disciplineId);
+    const subDiscipline = discipline?.sub_disciplines.find(s => s.id === subDisciplineId);
+    
+    console.log('🔬 [PROFILE] Sub-discipline change:', {
+      subDisciplineId,
+      disciplineId,
+      subDisciplineName: subDiscipline?.name,
+      disciplineName: discipline?.name,
+      isChecked,
+      currentSubs: Array.from(currentSubscriptionsSet)
+    });
+    
     if (isChecked) {
+      // Ajouter la sous-spécialité
       newSubs.add(`s:${subDisciplineId}`);
+      // AUTOMATIQUEMENT ajouter la spécialité parente si pas déjà présente
       if (!newSubs.has(`d:${disciplineId}`)) {
+        console.log('🔗 [PROFILE] Auto-adding parent discipline:', disciplineId);
         newSubs.add(`d:${disciplineId}`);
       }
     } else {
+      // Supprimer la sous-spécialité
       newSubs.delete(`s:${subDisciplineId}`);
+      
+      // Vérifier s'il reste d'autres sous-spécialités de cette discipline
+      const remainingSubsForDiscipline = discipline?.sub_disciplines.filter(sub =>
+        sub.id !== subDisciplineId && newSubs.has(`s:${sub.id}`)
+      );
+      
+      // Si plus aucune sous-spécialité sélectionnée, décocher la spécialité principale
+      if (!remainingSubsForDiscipline || remainingSubsForDiscipline.length === 0) {
+        console.log('🔗 [PROFILE] Auto-removing parent discipline (no more sub-specialties):', disciplineId);
+        newSubs.delete(`d:${disciplineId}`);
+      }
     }
+    
+    console.log('🔬 [PROFILE] After sub-discipline change:', {
+      newSubs: Array.from(newSubs)
+    });
+    
     setCurrentSubscriptionsSet(newSubs);
   };
 
-  const handleGradeChange = (grade: string, isChecked: boolean) => {
-    const newGrades = new Set(selectedGrades);
-    if (isChecked) {
-      newGrades.add(grade);
-    } else {
-      newGrades.delete(grade);
-    }
-    setSelectedGrades(Array.from(newGrades));
+  // Convert YYYY-MM-DD to DD/MM/YYYY for display
+  const formatDisplayDate = (dateString: string): string => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  const handleDateSelect = (date: string) => {
+    setDateOfBirth(date);
+  };
+
+  // Calculate selected grades based on minimum grade
+  const getGradesFromMinimum = (minimumGrade: string): string[] => {
+    const gradeHierarchy = ['A', 'B', 'C']; // A is highest, C is lowest
+    const minimumIndex = gradeHierarchy.indexOf(minimumGrade);
+    
+    if (minimumIndex === -1) return [];
+    
+    // Return all grades from A down to the minimum grade
+    return gradeHierarchy.slice(0, minimumIndex + 1);
+  };
+
+  // Handle minimum grade change and update selected grades accordingly
+  const handleMinimumGradeChange = (grade: string) => {
+    console.log('🎯 [PROFILE] Setting minimum grade to:', grade);
+    setMinimumGradeNotification(grade);
+    
+    // Automatically select this grade and all superior grades
+    const gradesFromMinimum = getGradesFromMinimum(grade);
+    console.log('🎯 [PROFILE] Auto-selecting grades:', gradesFromMinimum);
+    setSelectedGrades(gradesFromMinimum);
   };
 
   const gradeInfo = [
@@ -653,264 +809,473 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Vos informations</Text>
-          
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Prénom</Text>
-            <TextInput
-              style={styles.input}
-              value={firstName}
-              onChangeText={setFirstName}
-              placeholder="Votre prénom"
-              placeholderTextColor={COLORS.textPlaceholder}
-            />
-          </View>
+        {isAnonymous ? (
+          <LinkGuestAccountSection />
+        ) : (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Vos informations</Text>
+              
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Prénom</Text>
+                <TextInput
+                  style={styles.modernInput}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  placeholder="Votre prénom"
+                  placeholderTextColor={COLORS.textPlaceholder}
+                />
+              </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Nom</Text>
-            <TextInput
-              style={styles.input}
-              value={lastName}
-              onChangeText={setLastName}
-              placeholder="Votre nom"
-              placeholderTextColor={COLORS.textPlaceholder}
-            />
-          </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Nom</Text>
+                <TextInput
+                  style={styles.modernInput}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  placeholder="Votre nom"
+                  placeholderTextColor={COLORS.textPlaceholder}
+                />
+              </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Statut</Text>
-            <TouchableOpacity
-              style={styles.selectButton}
-              onPress={() => setShowStatusModal(true)}
-            >
-              <Text style={styles.selectButtonText}>
-                {status || 'Choisir votre statut'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Spécialité</Text>
-            <TextInput
-              style={styles.input}
-              value={specialty}
-              onChangeText={setSpecialty}
-              placeholder="Ex: Médecine Générale"
-              placeholderTextColor={COLORS.textPlaceholder}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Date de naissance</Text>
-            <TouchableOpacity
-              style={styles.selectButton}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Text style={styles.selectButtonText}>
-                {dateOfBirth || 'Choisir une date'}
-              </Text>
-              <Ionicons name="calendar" size={20} color={COLORS.iconSecondary} />
-            </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={dateOfBirth ? new Date(dateOfBirth) : new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
-                  setShowDatePicker(false);
-                  if (selectedDate) {
-                    setDateOfBirth(selectedDate.toISOString().split('T')[0]);
-                  }
-                }}
-              />
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Vos préférences de veille</Text>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Fréquence des notifications</Text>
-            <TouchableOpacity
-              style={styles.selectButton}
-              onPress={() => setShowNotificationModal(true)}
-            >
-              <Text style={styles.selectButtonText}>
-                {notificationOptions.find(opt => opt.value === notificationFrequency)?.label || 'Choisir une fréquence'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>
-              Grades de recommandation souhaités
-              <TouchableOpacity
-                onPress={() => setShowGradeInfo(!showGradeInfo)}
-                style={styles.infoButton}
-              >
-                <Text style={styles.infoButtonText}>i</Text>
-              </TouchableOpacity>
-            </Text>
-            <View style={styles.gradeContainer}>
-              {['A', 'B', 'C'].map((grade) => (
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Statut</Text>
                 <TouchableOpacity
-                  key={grade}
-                  style={[
-                    styles.gradeButton,
-                    selectedGrades.includes(grade) && styles.gradeButtonSelected,
-                  ]}
-                  onPress={() => handleGradeChange(grade, !selectedGrades.includes(grade))}
+                  style={styles.modernSelectButton}
+                  onPress={() => setShowStatusModal(true)}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {renderGradeStars(grade, 14)}
-                    <Text
-                      style={[
-                        styles.gradeButtonText,
-                        selectedGrades.includes(grade) && styles.gradeButtonTextSelected,
-                      ]}
-                    >
-                      {grade}
-                    </Text>
-                  </View>
+                  <Text style={styles.selectButtonText}>
+                    {status || 'Choisir votre statut'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
                 </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+              </View>
 
-          {showGradeInfo && (
-            <View style={styles.gradeInfoContainer}>
-              <Text style={styles.gradeInfoTitle}>Niveaux de preuve scientifique</Text>
-              {gradeInfo.map((info) => (
-                <View key={info.grade} style={styles.gradeInfoItem}>
-                  <View style={styles.gradeInfoHeader}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      {renderGradeStars(info.grade, 16)}
-                      <Text style={styles.gradeInfoGrade}>Grade {info.grade}</Text>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Spécialité</Text>
+                <TextInput
+                  style={styles.modernInput}
+                  value={specialty}
+                  onChangeText={setSpecialty}
+                  placeholder="Ex: Médecine Générale"
+                  placeholderTextColor={COLORS.textPlaceholder}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Date de naissance</Text>
+                <TouchableOpacity
+                  style={styles.modernSelectButton}
+                  onPress={() => setShowModernDatePicker(true)}
+                >
+                  <Text style={styles.selectButtonText}>
+                    {dateOfBirth ? formatDisplayDate(dateOfBirth) : 'DD/MM/YYYY'}
+                  </Text>
+                  <Ionicons name="calendar" size={20} color={COLORS.iconSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Séparateur élégant */}
+            <View style={styles.sectionSeparator} />
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Vos préférences de veille</Text>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Fréquence des notifications</Text>
+                <TouchableOpacity
+                  style={styles.modernSelectButton}
+                  onPress={() => setShowNotificationModal(true)}
+                >
+                  <Text style={styles.selectButtonText}>
+                    {notificationOptions.find(opt => opt.value === notificationFrequency)?.label || 'Choisir une fréquence'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color={COLORS.iconSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>
+                  Grade de recommandation minimum souhaité
+                  <TouchableOpacity
+                    onPress={() => setShowGradeInfo(!showGradeInfo)}
+                    style={styles.infoButton}
+                  >
+                    <Ionicons name="information" size={12} color={COLORS.white} />
+                  </TouchableOpacity>
+                </Text>
+                <Text style={styles.gradeExplanation}>
+                  Sélectionnez votre grade minimum. Vous recevrez les recommandations de ce grade et de tous les grades supérieurs.
+                </Text>
+                <View style={styles.gradeContainer}>
+                  {['A', 'B', 'C'].map((grade) => {
+                    const isMinimumGrade = minimumGradeNotification === grade;
+                    const isIncluded = selectedGrades.includes(grade);
+                    return (
+                      <TouchableOpacity
+                        key={grade}
+                        style={[
+                          styles.superModernGradeButton,
+                          isMinimumGrade && styles.superModernGradeButtonMinimum,
+                          isIncluded && !isMinimumGrade && styles.superModernGradeButtonIncluded,
+                        ]}
+                        onPress={() => handleMinimumGradeChange(grade)}
+                      >
+                        <View style={styles.gradeContent}>
+                          {renderGradeStars(grade, 16)}
+                          <Text
+                            style={[
+                              styles.superModernGradeText,
+                              isMinimumGrade && styles.superModernGradeTextMinimum,
+                              isIncluded && !isMinimumGrade && styles.superModernGradeTextIncluded,
+                            ]}
+                          >
+                            Grade {grade}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.gradeStatus,
+                              isMinimumGrade && styles.gradeStatusMinimum,
+                              isIncluded && !isMinimumGrade && styles.gradeStatusIncluded,
+                            ]}
+                          >
+                            {isMinimumGrade ? 'MINIMUM' : isIncluded ? 'INCLUS' : 'Non inclus'}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {showGradeInfo && (
+                <View style={styles.gradeInfoContainer}>
+                  <Text style={styles.gradeInfoTitle}>Niveaux de preuve scientifique</Text>
+                  {gradeInfo.map((info) => (
+                    <View key={info.grade} style={styles.gradeInfoItem}>
+                      <View style={styles.gradeInfoHeader}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          {renderGradeStars(info.grade, 16)}
+                          <Text style={styles.gradeInfoGrade}>Grade {info.grade}</Text>
+                        </View>
+                        <Text style={styles.gradeInfoLabel}>{info.label}</Text>
+                      </View>
+                      <Text style={styles.gradeInfoNiveau}>{info.niveau}</Text>
+                      {info.details.map((detail, index) => (
+                        <Text key={index} style={styles.gradeInfoDetail}>
+                          • {detail}
+                        </Text>
+                      ))}
                     </View>
-                    <Text style={styles.gradeInfoLabel}>{info.label}</Text>
-                  </View>
-                  <Text style={styles.gradeInfoNiveau}>{info.niveau}</Text>
-                  {info.details.map((detail, index) => (
-                    <Text key={index} style={styles.gradeInfoDetail}>
-                      • {detail}
-                    </Text>
                   ))}
                 </View>
-              ))}
-            </View>
-          )}
+              )}
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Spécialités et sous-spécialités suivies</Text>
-            <ScrollView style={styles.disciplinesContainer}>
-              {disciplines.map((discipline) => (
-                <View key={discipline.id} style={styles.disciplineGroup}>
-                  <View style={styles.disciplineHeader}>
-                    <TouchableOpacity
-                      style={styles.disciplineCheckboxContainer}
-                      onPress={() => handleMainDisciplineChange(
-                        discipline.id,
-                        !currentSubscriptionsSet.has(`d:${discipline.id}`)
-                      )}
-                    >
-                      <View
-                        style={[
-                          styles.checkbox,
-                          currentSubscriptionsSet.has(`d:${discipline.id}`) &&
-                            styles.checkboxSelected,
-                        ]}
-                      />
-                      <Text style={styles.disciplineName}>{discipline.name}</Text>
-                    </TouchableOpacity>
-                    {discipline.sub_disciplines.length > 0 && (
-                      <TouchableOpacity
-                        onPress={() => toggleDisciplineSection(discipline.id)}
-                        style={styles.expandButton}
-                      >
-                        <Ionicons
-                          name={
-                            openDisciplines.has(discipline.id)
-                              ? 'chevron-up'
-                              : 'chevron-down'
-                          }
-                          size={20}
-                          color={COLORS.iconSecondary}
-                        />
-                      </TouchableOpacity>
-                    )}
+              <View style={styles.inputContainer}>
+                <View style={styles.specialtyHeaderContainer}>
+                  <View style={styles.specialtyTitleContainer}>
+                    <Text style={styles.label}>Spécialités et sous-spécialités suivies</Text>
+                    <Text style={[
+                      styles.specialtyStats,
+                      (() => {
+                        const originalSubscriptionsSet = new Set(
+                          currentSubscriptions.map(sub => 
+                            sub.sub_discipline_id ? `s:${sub.sub_discipline_id}` : `d:${sub.discipline_id}`
+                          )
+                        );
+                        const hasChanges = 
+                          currentSubscriptionsSet.size !== originalSubscriptionsSet.size ||
+                          Array.from(currentSubscriptionsSet).some(sub => !originalSubscriptionsSet.has(sub)) ||
+                          Array.from(originalSubscriptionsSet).some(sub => !currentSubscriptionsSet.has(sub));
+                        
+                        return hasChanges ? styles.specialtyStatsModified : null;
+                      })()
+                    ]}>
+                      {(() => {
+                        const originalCount = currentSubscriptions.length;
+                        const currentCount = currentSubscriptionsSet.size;
+                        
+                        if (currentCount === 0) {
+                          return 'Aucune sélection';
+                        }
+                        
+                        const hasChanges = (() => {
+                          const originalSubscriptionsSet = new Set(
+                            currentSubscriptions.map(sub => 
+                              sub.sub_discipline_id ? `s:${sub.sub_discipline_id}` : `d:${sub.discipline_id}`
+                            )
+                          );
+                          return currentSubscriptionsSet.size !== originalSubscriptionsSet.size ||
+                            Array.from(currentSubscriptionsSet).some(sub => !originalSubscriptionsSet.has(sub)) ||
+                            Array.from(originalSubscriptionsSet).some(sub => !currentSubscriptionsSet.has(sub));
+                        })();
+                        
+                        const baseText = `${currentCount} sélectionnée${currentCount > 1 ? 's' : ''}`;
+                        return hasChanges ? `${baseText} (modifié)` : baseText;
+                      })()}
+                    </Text>
                   </View>
-                  {openDisciplines.has(discipline.id) &&
-                    discipline.sub_disciplines.length > 0 && (
-                      <View style={styles.subDisciplinesContainer}>
-                        {discipline.sub_disciplines.map((sub) => (
-                          <TouchableOpacity
-                            key={sub.id}
-                            style={styles.subDisciplineItem}
-                            onPress={() =>
-                              handleSubDisciplineChange(
-                                sub.id,
-                                discipline.id,
-                                !currentSubscriptionsSet.has(`s:${sub.id}`)
-                              )
-                            }
-                          >
-                            <View
-                              style={[
-                                styles.checkbox,
-                                currentSubscriptionsSet.has(`s:${sub.id}`) &&
-                                  styles.checkboxSelected,
-                              ]}
-                            />
-                            <Text style={styles.subDisciplineName}>
-                              {sub.name}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
+                  {(() => {
+                    // Calculer l'état original depuis la base de données
+                    const originalSubscriptionsSet = new Set(
+                      currentSubscriptions.map(sub => 
+                        sub.sub_discipline_id ? `s:${sub.sub_discipline_id}` : `d:${sub.discipline_id}`
+                      )
+                    );
+                    
+                    // Vérifier s'il y a des changements
+                    const hasChanges = 
+                      currentSubscriptionsSet.size !== originalSubscriptionsSet.size ||
+                      Array.from(currentSubscriptionsSet).some(sub => !originalSubscriptionsSet.has(sub)) ||
+                      Array.from(originalSubscriptionsSet).some(sub => !currentSubscriptionsSet.has(sub));
+                    
+                    return hasChanges ? (
+                      <TouchableOpacity 
+                        style={styles.resetButton}
+                        onPress={() => {
+                          console.log('🔄 [PROFILE] Resetting specialties to saved state');
+                          console.log('🔄 [PROFILE] Restoring to original subscriptions:', {
+                            original: Array.from(originalSubscriptionsSet),
+                            current: Array.from(currentSubscriptionsSet)
+                          });
+                          setCurrentSubscriptionsSet(originalSubscriptionsSet);
+                        }}
+                      >
+                        <Ionicons name="refresh-outline" size={12} color={COLORS.textSecondary} />
+                        <Text style={styles.resetButtonText}>Réinitialiser</Text>
+                      </TouchableOpacity>
+                    ) : null;
+                  })()}
                 </View>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
+                
+                {/* Résumé des spécialités suivies */}
+                {currentSubscriptionsSet.size > 0 && (
+                  <View style={styles.summaryContainer}>
+                    <Text style={styles.summaryTitle}>
+                      ✅ Spécialités actuellement suivies
+                    </Text>
+                    <View style={styles.summaryItems}>
+                      {/* Spécialités principales */}
+                      {Array.from(currentSubscriptionsSet)
+                        .filter(sub => sub.startsWith('d:'))
+                        .map((sub, index) => {
+                          const [type, id] = sub.split(':');
+                          const discipline = disciplines.find(d => d.id === parseInt(id));
+                          const selectedSubsCount = discipline?.sub_disciplines.filter(subDisc => 
+                            currentSubscriptionsSet.has(`s:${subDisc.id}`)
+                          ).length || 0;
+                          
+                          return (
+                            <View key={index} style={styles.summaryMainItem}>
+                              <View style={styles.summaryItemHeader}>
+                                <Ionicons name="medical" size={14} color={COLORS.success} />
+                                <Text style={styles.summaryMainItemText}>{discipline?.name}</Text>
+                                <View style={styles.specialtyMainBadge}>
+                                  <Text style={styles.specialtyMainBadgeText}>PRINCIPALE</Text>
+                                </View>
+                              </View>
+                              {selectedSubsCount > 0 && (
+                                <Text style={styles.subSpecialtyInfo}>
+                                  + {selectedSubsCount} sous-spécialité{selectedSubsCount > 1 ? 's' : ''}
+                                </Text>
+                              )}
+                            </View>
+                          );
+                        })}
+                      
+                      {/* Sous-spécialités orphelines (sans spécialité principale) */}
+                      {Array.from(currentSubscriptionsSet)
+                        .filter(sub => {
+                          if (!sub.startsWith('s:')) return false;
+                          const [, subId] = sub.split(':');
+                          const parentDiscipline = disciplines.find(d => 
+                            d.sub_disciplines.some(s => s.id === parseInt(subId))
+                          );
+                          return parentDiscipline && !currentSubscriptionsSet.has(`d:${parentDiscipline.id}`);
+                        })
+                        .map((sub, index) => {
+                          const [, id] = sub.split(':');
+                          const subDiscipline = disciplines
+                            .flatMap(d => d.sub_disciplines)
+                            .find(s => s.id === parseInt(id));
+                          
+                          return (
+                            <View key={`orphan-${index}`} style={styles.summarySubItem}>
+                              <Ionicons name="arrow-forward" size={12} color={COLORS.iconSecondary} />
+                              <Text style={styles.summarySubItemText}>{subDiscipline?.name}</Text>
+                              <View style={styles.specialtySubBadge}>
+                                <Text style={styles.specialtySubBadgeText}>SOUS</Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                    </View>
+                  </View>
+                )}
 
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color={COLORS.textOnPrimaryButton} />
-          ) : (
-            <Text style={styles.saveButtonText}>Enregistrer les modifications</Text>
-          )}
-        </TouchableOpacity>
+                <ScrollView style={styles.disciplinesContainer}>
+                  {disciplines.map((discipline) => {
+                    const isDisciplineSelected = currentSubscriptionsSet.has(`d:${discipline.id}`);
+                    const selectedSubsCount = discipline.sub_disciplines.filter(sub => 
+                      currentSubscriptionsSet.has(`s:${sub.id}`)
+                    ).length;
+                    
+                    return (
+                      <View key={discipline.id} style={styles.modernDisciplineGroup}>
+                        <View style={styles.modernDisciplineHeader}>
+                          <TouchableOpacity
+                            style={styles.modernDisciplineItem}
+                            onPress={() => handleMainDisciplineChange(
+                              discipline.id,
+                              !isDisciplineSelected
+                            )}
+                          >
+                            <View style={[
+                              styles.modernCheckbox,
+                              isDisciplineSelected && styles.modernCheckboxSelected
+                            ]}>
+                              {isDisciplineSelected && (
+                                <Ionicons name="checkmark" size={16} color={COLORS.white} />
+                              )}
+                            </View>
+                            <View style={styles.disciplineInfo}>
+                              <Text style={[
+                                styles.modernDisciplineName,
+                                isDisciplineSelected && styles.modernDisciplineNameSelected
+                              ]}>
+                                {discipline.name}
+                              </Text>
+                              {selectedSubsCount > 0 && (
+                                <Text style={styles.subSpecialtyCount}>
+                                  {selectedSubsCount} sous-spécialité{selectedSubsCount > 1 ? 's' : ''} suivie{selectedSubsCount > 1 ? 's' : ''}
+                                </Text>
+                              )}
+                            </View>
+                            {isDisciplineSelected && (
+                              <View style={styles.followingBadge}>
+                                <Text style={styles.followingBadgeText}>SUIVI</Text>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                          {discipline.sub_disciplines.length > 0 && (
+                            <TouchableOpacity
+                              onPress={() => toggleDisciplineSection(discipline.id)}
+                              style={styles.modernExpandButton}
+                            >
+                              <Ionicons
+                                name={
+                                  openDisciplines.has(discipline.id)
+                                    ? 'chevron-up'
+                                    : 'chevron-down'
+                                }
+                                size={20}
+                                color={COLORS.iconSecondary}
+                              />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {openDisciplines.has(discipline.id) &&
+                          discipline.sub_disciplines.length > 0 && (
+                            <View style={styles.modernSubDisciplinesContainer}>
+                              {discipline.sub_disciplines.map((sub) => {
+                                const isSubSelected = currentSubscriptionsSet.has(`s:${sub.id}`);
+                                return (
+                                  <TouchableOpacity
+                                    key={sub.id}
+                                    style={styles.modernSubDisciplineItem}
+                                    onPress={() =>
+                                      handleSubDisciplineChange(
+                                        sub.id,
+                                        discipline.id,
+                                        !isSubSelected
+                                      )
+                                    }
+                                  >
+                                    <View style={[
+                                      styles.modernCheckbox,
+                                      isSubSelected && styles.modernCheckboxSelected
+                                    ]}>
+                                      {isSubSelected && (
+                                        <Ionicons name="checkmark" size={14} color={COLORS.white} />
+                                      )}
+                                    </View>
+                                    <Text style={[
+                                      styles.modernSubDisciplineName,
+                                      isSubSelected && styles.modernSubDisciplineNameSelected
+                                    ]}>
+                                      {sub.name}
+                                    </Text>
+                                    {isSubSelected && (
+                                      <View style={styles.miniFollowingBadge}>
+                                        <Text style={styles.miniFollowingBadgeText}>✓</Text>
+                                      </View>
+                                    )}
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </View>
+                          )}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
 
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          disabled={loading}
-        >
-          <Text style={styles.logoutButtonText}>Déconnexion</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modernSaveButton}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <View style={styles.buttonContent}>
+                  <Ionicons name="checkmark-circle" size={20} color={COLORS.white} />
+                  <Text style={styles.modernSaveButtonText}>Enregistrer les modifications</Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.deleteAccountButton}
-          onPress={() => setShowDeleteAccountModal(true)}
-          disabled={loading}
-        >
-          <Text style={styles.deleteAccountButtonText}>Supprimer mon compte</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modernLogoutButton}
+              onPress={handleLogout}
+              disabled={loading}
+            >
+              <View style={styles.buttonContent}>
+                <Ionicons name="log-out-outline" size={20} color={COLORS.textSecondary} />
+                <Text style={styles.modernLogoutButtonText}>Déconnexion</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modernDeleteAccountButton}
+              onPress={() => setShowDeleteAccountModal(true)}
+              disabled={loading}
+            >
+              <View style={styles.buttonContent}>
+                <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+                <Text style={styles.modernDeleteAccountButtonText}>Supprimer mon compte</Text>
+              </View>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
 
       {renderStatusModal()}
       {renderNotificationModal()}
       {renderDeleteAccountModal()}
       {renderAdminModal()}
+      
+      {/* Modern Date Picker */}
+      <ModernDatePicker
+        visible={showModernDatePicker}
+        onClose={() => setShowModernDatePicker(false)}
+        onDateSelect={handleDateSelect}
+        initialDate={dateOfBirth}
+        title="Anniversaire 🎉"
+      />
     </View>
   );
 }
@@ -967,24 +1332,23 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 30,
-    backgroundColor: COLORS.backgroundSecondary,
-    borderRadius: 10,
-    padding: 15,
   },
   sectionTitle: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.sans.bold,
-    marginBottom: 15,
+    marginBottom: 20,
     color: COLORS.textPrimary,
+    paddingLeft: 4,
   },
   inputContainer: {
-    marginBottom: 15,
+    marginBottom: 20,
   },
   label: {
     fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.sans.regular,
-    marginBottom: 5,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.sans.medium,
+    marginBottom: 8,
+    color: COLORS.textPrimary,
+    paddingLeft: 4,
   },
   input: {
     borderWidth: 1,
@@ -1054,33 +1418,346 @@ const styles = StyleSheet.create({
   gradeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 15,
+    gap: 8,
   },
-  gradeButton: {
+  superModernGradeButton: {
     flex: 1,
-    padding: 8,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: COLORS.borderInput,
-    borderRadius: 5,
+    borderRadius: 12,
     marginHorizontal: 5,
-    alignItems: 'center',
     backgroundColor: COLORS.backgroundPrimary,
-    minHeight: 44,
-    justifyContent: 'center',
+    minHeight: 80,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  gradeButtonSelected: {
+  superModernGradeButtonSelected: {
     backgroundColor: COLORS.buttonBackgroundPrimary,
     borderColor: COLORS.buttonBackgroundPrimary,
+    borderWidth: 3,
+    shadowColor: COLORS.buttonBackgroundPrimary,
+    shadowOpacity: 0.4,
+    transform: [{ scale: 1.02 }],
   },
-  gradeButtonText: {
+  superModernGradeButtonMinimum: {
+    borderColor: COLORS.buttonBackgroundPrimary,
+    borderWidth: 3,
+    shadowColor: COLORS.buttonBackgroundPrimary,
+    shadowOpacity: 0.4,
+    transform: [{ scale: 1.02 }],
+  },
+  superModernGradeButtonIncluded: {
+    borderColor: COLORS.buttonBackgroundPrimary,
+    borderWidth: 2,
+    shadowColor: COLORS.buttonBackgroundPrimary,
+    shadowOpacity: 0.3,
+    transform: [{ scale: 0.98 }],
+  },
+  gradeBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: COLORS.success,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  gradeContent: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    paddingTop: 16,
+  },
+  superModernGradeText: {
+    fontFamily: FONTS.sans.medium,
+    color: COLORS.textPrimary,
+    marginTop: 8,
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'center',
+  },
+  superModernGradeTextSelected: {
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.white,
+  },
+  gradeStatus: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  gradeStatusSelected: {
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.white,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  modernInput: {
+    borderWidth: 1,
+    borderColor: COLORS.borderInput,
+    borderRadius: 12,
+    padding: 15,
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    backgroundColor: COLORS.backgroundPrimary,
+    color: COLORS.textPrimary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modernSaveButton: {
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    padding: 18,
+    borderRadius: 15,
+    alignItems: 'center',
+    marginBottom: 15,
+    shadowColor: COLORS.buttonBackgroundPrimary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modernSaveButtonText: {
+    color: COLORS.buttonTextPrimary,
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    marginLeft: 8,
+  },
+  modernLogoutButton: {
+    backgroundColor: COLORS.backgroundPrimary,
+    padding: 18,
+    borderRadius: 15,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderPrimary,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modernLogoutButtonText: {
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    marginLeft: 8,
+  },
+  modernDeleteAccountButton: {
+    backgroundColor: '#FFEBEE',
+    padding: 18,
+    borderRadius: 15,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D32F2F',
+    shadowColor: '#D32F2F',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modernDeleteAccountButtonText: {
+    color: '#D32F2F',
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    marginLeft: 8,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionSeparator: {
+    height: 1,
+    backgroundColor: COLORS.borderPrimary,
+    marginVertical: 20,
+    marginHorizontal: 10,
+  },
+  modernDisciplineGroup: {
+    marginBottom: 10,
+  },
+  modernDisciplineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 5,
+  },
+  modernDisciplineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  modernCheckbox: {
+    width: 22,
+    height: 22,
+    borderWidth: 2,
+    borderColor: COLORS.iconSecondary,
+    borderRadius: 6,
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.backgroundPrimary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  modernCheckboxSelected: {
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    borderColor: COLORS.buttonBackgroundPrimary,
+    shadowColor: COLORS.buttonBackgroundPrimary,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  modernDisciplineName: {
+    fontSize: FONT_SIZES.base,
     fontFamily: FONTS.sans.regular,
     color: COLORS.textPrimary,
-    marginLeft: 4,
-    fontSize: 12,
+    flex: 1,
   },
-  gradeButtonTextSelected: {
+  modernDisciplineNameSelected: {
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.buttonBackgroundPrimary,
+  },
+  followingBadge: {
+    backgroundColor: COLORS.success,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginLeft: 10,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  followingBadgeText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.bold,
+    letterSpacing: 0.5,
+  },
+  modernExpandButton: {
+    padding: 5,
+  },
+  modernSubDisciplinesContainer: {
+    marginLeft: 30,
+    marginTop: 5,
+  },
+  modernSubDisciplineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+    paddingVertical: 3,
+  },
+  modernSubDisciplineName: {
+    fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.sans.regular,
-    color: COLORS.buttonTextPrimary,
+    color: COLORS.textSecondary,
+    flex: 1,
+  },
+  modernSubDisciplineNameSelected: {
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.buttonBackgroundPrimary,
+  },
+  miniFollowingBadge: {
+    backgroundColor: COLORS.success,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginLeft: 10,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  miniFollowingBadgeText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.bold,
+  },
+  minimumGradeBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  includedGradeBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  gradeExplanation: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  superModernGradeTextMinimum: {
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.buttonBackgroundPrimary,
+  },
+  superModernGradeTextIncluded: {
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.buttonBackgroundPrimary,
+  },
+  gradeStatusMinimum: {
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.buttonBackgroundPrimary,
+  },
+  gradeStatusIncluded: {
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.buttonBackgroundPrimary,
   },
   infoButton: {
     width: 20,
@@ -1098,11 +1775,16 @@ const styles = StyleSheet.create({
   },
   gradeInfoContainer: {
     backgroundColor: COLORS.backgroundPrimary,
-    borderRadius: 5,
-    padding: 15,
-    marginTop: 10,
+    borderRadius: 12,
+    padding: 18,
+    marginTop: 15,
     borderWidth: 1,
     borderColor: COLORS.borderPrimary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   gradeInfoTitle: {
     fontSize: FONT_SIZES.base,
@@ -1141,89 +1823,33 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginLeft: 10,
   },
+  modernSelectButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderInput,
+    borderRadius: 12,
+    padding: 15,
+    backgroundColor: COLORS.backgroundPrimary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   disciplinesContainer: {
     maxHeight: 300,
     borderColor: COLORS.borderPrimary,
     borderWidth: 1,
-    borderRadius: 5,
-    padding: 10,
+    borderRadius: 12,
+    padding: 15,
     backgroundColor: COLORS.backgroundPrimary,
-  },
-  disciplineGroup: {
-    marginBottom: 10,
-  },
-  disciplineHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 5,
-  },
-  disciplineCheckboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 1,
-    borderColor: COLORS.iconSecondary,
-    borderRadius: 3,
-    marginRight: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxSelected: {
-    backgroundColor: COLORS.buttonBackgroundPrimary,
-    borderColor: COLORS.buttonBackgroundPrimary,
-  },
-  disciplineName: {
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.regular,
-    color: COLORS.textPrimary,
-  },
-  expandButton: {
-    padding: 5,
-  },
-  subDisciplinesContainer: {
-    marginLeft: 30,
-    marginTop: 5,
-  },
-  subDisciplineItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 5,
-    paddingVertical: 3,
-  },
-  subDisciplineName: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.sans.regular,
-    color: COLORS.textSecondary,
-  },
-  saveButton: {
-    backgroundColor: COLORS.buttonBackgroundPrimary,
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  saveButtonText: {
-    color: COLORS.buttonTextPrimary,
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.bold,
-  },
-  logoutButton: {
-    backgroundColor: COLORS.backgroundSecondary,
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.borderPrimary,
-  },
-  logoutButtonText: {
-    color: COLORS.textPrimary,
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.bold,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   errorContainer: {
     backgroundColor: COLORS.errorBackground || '#ffebee',
@@ -1246,20 +1872,6 @@ const styles = StyleSheet.create({
     color: COLORS.successText || COLORS.success,
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.sans.regular,
-  },
-  deleteAccountButton: {
-    backgroundColor: '#FFEBEE',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#D32F2F',
-    marginTop: 10,
-  },
-  deleteAccountButtonText: {
-    color: '#D32F2F',
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.bold,
   },
   deleteAccountContent: {
     padding: 20,
@@ -1331,6 +1943,161 @@ const styles = StyleSheet.create({
   confirmDeleteButtonText: {
     color: '#FFFFFF',
     fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+  },
+  specialtyHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  specialtyTitleContainer: {
+    flexDirection: 'column',
+    flex: 1,
+  },
+  specialtyStats: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: COLORS.borderPrimary,
+    opacity: 0.8,
+  },
+  resetButtonDisabled: {
+    opacity: 0.6,
+  },
+  resetButtonText: {
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.regular,
+    marginLeft: 3,
+  },
+  resetButtonTextDisabled: {
+    color: COLORS.textSecondary,
+  },
+  summaryContainer: {
+    backgroundColor: COLORS.backgroundPrimary,
+    borderRadius: 12,
+    padding: 15,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderPrimary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  summaryTitle: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    marginBottom: 10,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+  summaryItems: {
+    flexDirection: 'column',
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+    paddingLeft: 10,
+  },
+  summaryItemText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+    marginLeft: 8,
+  },
+  disciplineInfo: {
+    flex: 1,
+  },
+  subSpecialtyCount: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  summaryMainItem: {
+    marginBottom: 10,
+    paddingLeft: 10,
+  },
+  summaryItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  summaryMainItemText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textPrimary,
+    marginLeft: 8,
+  },
+  specialtyMainBadge: {
+    backgroundColor: COLORS.success,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginLeft: 10,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  specialtyMainBadgeText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.bold,
+  },
+  subSpecialtyInfo: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+    marginLeft: 10,
+  },
+  summarySubItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+    paddingLeft: 10,
+  },
+  summarySubItemText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+    marginLeft: 8,
+  },
+  specialtySubBadge: {
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginLeft: 10,
+    shadowColor: COLORS.buttonBackgroundPrimary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  specialtySubBadgeText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.bold,
+  },
+  specialtyStatsModified: {
+    color: COLORS.buttonBackgroundPrimary,
     fontFamily: FONTS.sans.bold,
   },
 }); 

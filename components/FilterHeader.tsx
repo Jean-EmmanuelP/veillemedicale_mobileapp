@@ -52,7 +52,7 @@ export default function FilterHeader({
   const subDisciplineModalRef = useRef<BottomSheetModal>(null);
   const gradeModalRef = useRef<BottomSheetModal>(null);
 
-  const snapPoints = useMemo(() => ['50%'], []);
+  const snapPoints = useMemo(() => ['80%'], []);
 
   const selectedDisciplineName = selectedDiscipline === 'all' 
     ? 'Toutes les disciplines' 

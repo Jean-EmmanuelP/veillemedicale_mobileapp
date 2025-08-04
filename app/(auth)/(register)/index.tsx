@@ -13,6 +13,7 @@ import {
   Animated,
   Easing,
   FlatList, // Ajout FlatList
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -20,6 +21,10 @@ import { BlurView } from "expo-blur";
 import { supabase } from "../../../lib/supabase";
 import { FONTS, FONT_SIZES } from "../../../assets/constants/fonts";
 import LoaderS from "../../../components/LoaderS";
+import { useDispatch } from "react-redux";
+import { signInAnonymously } from "../../../store/authSlice";
+import { AppDispatch } from "../../../store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width, height } = Dimensions.get("window");
 
@@ -38,15 +43,17 @@ const SLIDES = [
   },
   {
     emoji: "🔔",
-    text: "Choisissez à votre rythme d’être notifié : chaque jour ou chaque semaine",
+    text: "Choisissez à votre rythme d'être notifié : chaque jour ou chaque semaine",
   },
 ];
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const dispatch = useDispatch<AppDispatch>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingAnonymous, setLoadingAnonymous] = useState(false);
   const [step, setStep] = useState(1); // 1=email, 2=mdp
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
@@ -347,6 +354,28 @@ export default function RegisterScreen() {
     }
     setLoading(false);
     setShowLoader(false);
+  };
+
+  const handleAnonymousLogin = async () => {
+    setLoadingAnonymous(true);
+    try {
+      const resultAction = await dispatch(signInAnonymously());
+      if (signInAnonymously.fulfilled.match(resultAction)) {
+        await AsyncStorage.setItem("lastLoginMethod", "Invité");
+        router.replace("/(app)");
+      } else {
+        Alert.alert(
+          "Erreur de connexion",
+          "Impossible de se connecter en tant qu'invité. Veuillez réessayer."
+        );
+      }
+    } catch (error: any) {
+      Alert.alert(
+        "Erreur",
+        error.message || "Une erreur est survenue lors de la connexion en tant qu'invité."
+      );
+    }
+    setLoadingAnonymous(false);
   };
 
   return (
@@ -716,12 +745,92 @@ export default function RegisterScreen() {
         }}
       >
         {step === 1 && (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Text style={{ color: "#fff" }}>Déjà membre ?</Text>
-          <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-            <Text style={{ color: "#3973c4" }}>Connectez-vous.</Text>
-          </TouchableOpacity>
-        </View>
+          <View style={{ flexDirection: "column", gap: 12, width: "100%" }}>
+            {/* Séparateur visuel en haut */}
+            <View style={{ 
+              flexDirection: "row", 
+              alignItems: "center", 
+              marginVertical: 4 
+            }}>
+              <View style={{ 
+                flex: 1, 
+                height: 1, 
+                backgroundColor: "rgba(255, 255, 255, 0.1)" 
+              }} />
+              <Text style={{ 
+                color: "rgba(255, 255, 255, 0.4)", 
+                fontSize: 11, 
+                marginHorizontal: 12,
+                fontFamily: FONTS.regular
+              }}>
+                ou
+              </Text>
+              <View style={{ 
+                flex: 1, 
+                height: 1, 
+                backgroundColor: "rgba(255, 255, 255, 0.1)" 
+              }} />
+            </View>
+
+            {/* Bouton continuer en tant qu'invité - plus discret */}
+            <TouchableOpacity
+              onPress={handleAnonymousLogin}
+              disabled={loadingAnonymous}
+              style={{
+                backgroundColor: "transparent",
+                borderRadius: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                alignItems: "center",
+                borderColor: "rgba(255, 255, 255, 0.15)",
+                borderWidth: 1,
+                marginBottom: 12,
+              }}
+            >
+              {loadingAnonymous ? (
+                <ActivityIndicator color="#aaa" size="small" />
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name="person-outline" size={16} color="#aaa" />
+                  <Text style={{ 
+                    color: "#aaa", 
+                    fontSize: 14,
+                    fontFamily: FONTS.regular,
+                  }}>
+                    Continuer en tant qu'invité
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            
+            {/* Lien "Déjà membre" - sans soulignement */}
+            <View style={{ 
+              flexDirection: "row", 
+              alignItems: "center", 
+              justifyContent: "center",
+              paddingVertical: 4
+            }}>
+              <Text style={{ 
+                color: "rgba(255, 255, 255, 0.7)", 
+                fontSize: 14,
+                fontFamily: FONTS.regular
+              }}>
+                Déjà membre ?
+              </Text>
+              <TouchableOpacity 
+                onPress={() => router.push("/(auth)/(login)")}
+                style={{ marginLeft: 6 }}
+              >
+                <Text style={{ 
+                  color: "#4A9EFF", 
+                  fontSize: 14,
+                  fontFamily: FONTS.medium,
+                }}>
+                  Connectez-vous
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
         {step === 2 && (
           <View style={{ width: "100%", height: "100%", flexDirection: "row", alignItems: "flex-end", justifyContent: "center", paddingBottom: Dimensions.get("window").height * 0.05 }}>

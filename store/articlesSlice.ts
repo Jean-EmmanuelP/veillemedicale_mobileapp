@@ -44,6 +44,8 @@ interface ArticlesState {
   savedArticleIds: number[];
 
   likedArticles: Article[];
+  loadingLikedArticles: boolean;
+  errorLikedArticles: string | null;
 }
 
 const initialState: ArticlesState = {
@@ -70,6 +72,8 @@ const initialState: ArticlesState = {
   savedArticleIds: [],
 
   likedArticles: [],
+  loadingLikedArticles: false,
+  errorLikedArticles: null,
 };
 
 // Fetches only disciplines/sub-disciplines user is subscribed to
@@ -208,6 +212,15 @@ export const toggleLike = createAsyncThunk(
   'articles/toggleLike',
   async ({ articleId, userId }: { articleId: number; userId: string }, { getState }) => {
     const state = getState() as RootState;
+    
+    // Vérifier si l'utilisateur est anonyme - ne pas faire d'appels DB
+    if (state.auth.isAnonymous) {
+      console.log('👤 [ARTICLES] toggleLike skipped for anonymous user');
+      throw new Error('Anonymous users cannot like articles');
+    }
+    
+    console.log('❤️ [ARTICLES] toggleLike for article:', articleId, 'user:', userId);
+    
     const articleFromItems = state.articles.items.find(a => a.article_id === articleId);
     const articleFromMyArticles = state.articles.myArticles.find(a => a.article_id === articleId);
     const article = articleFromItems || articleFromMyArticles;
@@ -220,8 +233,12 @@ export const toggleLike = createAsyncThunk(
       const { error } = await supabase.from('article_likes').insert({ article_id: articleId, user_id: userId });
       opError = error;
     }
-    if (opError) { console.error('Toggle like error:', opError); throw opError; }
+    if (opError) { 
+      console.error('❌ [ARTICLES] Toggle like error:', opError); 
+      throw opError; 
+    }
     const newLikeCount = article.is_liked ? article.like_count - 1 : article.like_count + 1;
+    console.log('✅ [ARTICLES] Like toggled successfully');
     return { articleId, isLiked: !article.is_liked, likeCount: newLikeCount };
   }
 );
@@ -230,6 +247,15 @@ export const toggleRead = createAsyncThunk(
   'articles/toggleRead',
   async ({ articleId, userId }: { articleId: number; userId: string }, { getState }) => {
     const state = getState() as RootState;
+    
+    // Vérifier si l'utilisateur est anonyme - ne pas faire d'appels DB
+    if (state.auth.isAnonymous) {
+      console.log('👤 [ARTICLES] toggleRead skipped for anonymous user');
+      throw new Error('Anonymous users cannot mark articles as read');
+    }
+    
+    console.log('📖 [ARTICLES] toggleRead for article:', articleId, 'user:', userId);
+    
     const articleFromItems = state.articles.items.find(a => a.article_id === articleId);
     const articleFromMyArticles = state.articles.myArticles.find(a => a.article_id === articleId);
     const article = articleFromItems || articleFromMyArticles;
@@ -242,8 +268,12 @@ export const toggleRead = createAsyncThunk(
       const { error } = await supabase.from('article_read').upsert({ article_id: articleId, user_id: userId }, { ignoreDuplicates: true });
       opError = error;
     }
-    if (opError) { console.error('Toggle read error:', opError); throw opError; }
+    if (opError) { 
+      console.error('❌ [ARTICLES] Toggle read error:', opError); 
+      throw opError; 
+    }
     const newReadCount = article.is_read ? article.read_count - 1 : article.read_count + 1;
+    console.log('✅ [ARTICLES] Read status toggled successfully');
     return { articleId, isRead: !article.is_read, readCount: newReadCount };
   }
 );
@@ -252,6 +282,15 @@ export const toggleThumbsUp = createAsyncThunk(
   'articles/toggleThumbsUp',
   async ({ articleId, userId }: { articleId: number; userId: string }, { getState }) => {
     const state = getState() as RootState;
+    
+    // Vérifier si l'utilisateur est anonyme - ne pas faire d'appels DB
+    if (state.auth.isAnonymous) {
+      console.log('👤 [ARTICLES] toggleThumbsUp skipped for anonymous user');
+      throw new Error('Anonymous users cannot give thumbs up');
+    }
+    
+    console.log('👍 [ARTICLES] toggleThumbsUp for article:', articleId, 'user:', userId);
+    
     const articleFromItems = state.articles.items.find(a => a.article_id === articleId);
     const articleFromMyArticles = state.articles.myArticles.find(a => a.article_id === articleId);
     const articleFromLiked = state.articles.likedArticles.find(a => a.article_id === articleId);
@@ -266,26 +305,46 @@ export const toggleThumbsUp = createAsyncThunk(
       const { error } = await supabase.from('article_thumbs_up').insert({ article_id: articleId, user_id: userId });
       opError = error;
     }
-    if (opError) { console.error('Toggle thumbs up error:', opError); throw opError; }
+    if (opError) { 
+      console.error('❌ [ARTICLES] Toggle thumbs up error:', opError); 
+      throw opError; 
+    }
     const newThumbsUpCount = article ? (isThumbedUp ? article.thumbs_up_count - 1 : article.thumbs_up_count + 1) : 0;
+    console.log('✅ [ARTICLES] Thumbs up toggled successfully');
     return { articleId, isThumbedUp: !isThumbedUp, thumbsUpCount: newThumbsUpCount };
   }
 );
 
 export const fetchLikedArticles = createAsyncThunk<
   Article[],
-  { userId: string; discipline?: string | null; subDiscipline?: string | null; offset?: number; searchTerm?: string | null }
+  { userId: string; discipline?: string | null; subDiscipline?: string | null; offset?: number; searchTerm?: string | null; onlyRecommendations?: boolean },
+  { state: RootState }
 >(
   'articles/fetchLikedArticles',
-  async ({ userId, discipline = null, subDiscipline = null, offset = 0, searchTerm = null }) => {
-    const { data, error } = await supabase.rpc('get_liked_articles', {
+  async ({ userId, discipline = null, subDiscipline = null, offset = 0, searchTerm = null, onlyRecommendations = false }, { getState }) => {
+    const state = getState();
+    
+    // Vérifier si l'utilisateur est anonyme - ne pas faire d'appels DB
+    if (state.auth.isAnonymous) {
+      console.log('👤 [ARTICLES] fetchLikedArticles skipped for anonymous user');
+      throw new Error('Anonymous users do not have liked articles');
+    }
+    
+    console.log('❤️ [ARTICLES] fetchLikedArticles for user:', userId);
+    
+    const { data, error } = await supabase.rpc('get_user_liked_articles', {
       p_user_id: userId,
       p_discipline_name: discipline,
       p_sub_discipline_name: subDiscipline,
-      p_offset: offset,
       p_search_term: searchTerm,
+      p_only_recommendations: onlyRecommendations,
+      p_offset: offset,
     });
-    if (error) throw error;
+    if (error) {
+      console.error('❌ [ARTICLES] fetchLikedArticles error:', error);
+      throw error;
+    }
+    console.log('✅ [ARTICLES] fetchLikedArticles completed, found:', data?.length || 0, 'articles');
     return data || [];
   }
 );
@@ -429,6 +488,16 @@ const articlesSlice = createSlice({
         const update = (a: Article) => a.article_id === articleId ? { ...a, is_liked: isLiked, like_count: likeCount } : a;
         state.items = state.items.map(update);
         state.myArticles = state.myArticles.map(update);
+        state.likedArticles = state.likedArticles.map(update);
+      })
+      .addCase(toggleLike.rejected, (state, action) => {
+        // Ne pas afficher l'erreur pour les utilisateurs anonymes
+        const errorMessage = action.error.message || '';
+        if (errorMessage.includes('Anonymous users cannot like articles')) {
+          console.log('🔇 [ARTICLES] toggleLike.rejected: Suppressing error for anonymous user');
+        } else {
+          console.error('❌ [ARTICLES] toggleLike.rejected:', errorMessage);
+        }
       })
       .addCase(toggleRead.fulfilled, (state, action: PayloadAction<{articleId: number; isRead: boolean; readCount: number} | undefined>) => {
         if (!action.payload) return;
@@ -443,9 +512,39 @@ const articlesSlice = createSlice({
         const update = (a: Article) => a.article_id === articleId ? { ...a, is_thumbed_up: isThumbedUp, thumbs_up_count: thumbsUpCount } : a;
         state.items = state.items.map(update);
         state.myArticles = state.myArticles.map(update);
+        state.likedArticles = state.likedArticles.map(update);
+      })
+      .addCase(toggleThumbsUp.rejected, (state, action) => {
+        // Ne pas afficher l'erreur pour les utilisateurs anonymes
+        const errorMessage = action.error.message || '';
+        if (errorMessage.includes('Anonymous users cannot give thumbs up')) {
+          console.log('🔇 [ARTICLES] toggleThumbsUp.rejected: Suppressing error for anonymous user');
+        } else {
+          console.error('❌ [ARTICLES] toggleThumbsUp.rejected:', errorMessage);
+        }
+      })
+      .addCase(fetchLikedArticles.pending, (state) => {
+        state.loadingLikedArticles = true;
+        state.errorLikedArticles = null;
+        console.log('⏳ [ARTICLES] fetchLikedArticles.pending: Loading liked articles...');
       })
       .addCase(fetchLikedArticles.fulfilled, (state, action) => {
+        state.loadingLikedArticles = false;
         state.likedArticles = action.payload;
+        console.log('✅ [ARTICLES] fetchLikedArticles.fulfilled: Loaded', action.payload.length, 'liked articles');
+      })
+      .addCase(fetchLikedArticles.rejected, (state, action) => {
+        state.loadingLikedArticles = false;
+        
+        // Ne pas afficher l'erreur pour les utilisateurs anonymes
+        const errorMessage = action.error.message || '';
+        if (errorMessage.includes('Anonymous users do not have liked articles')) {
+          console.log('🔇 [ARTICLES] fetchLikedArticles.rejected: Suppressing error for anonymous user');
+          state.errorLikedArticles = null;
+        } else {
+          console.error('❌ [ARTICLES] fetchLikedArticles.rejected:', errorMessage);
+          state.errorLikedArticles = errorMessage || 'Une erreur est survenue';
+        }
       });
   },
 });

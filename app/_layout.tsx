@@ -47,20 +47,32 @@ function NavigationLayout() {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
+          console.log('🔐 [ROOT LAYOUT] Session found during initialization:', {
+            userId: session.user.id,
+            email: session.user.email,
+            isAnonymous: session.user.is_anonymous
+          });
+          
           dispatch(setUser({
             id: session.user.id,
             email: session.user.email,
             name: session.user.user_metadata.name || '',
+            is_anonymous: session.user.is_anonymous || false,
           }));
           dispatch(setSession(session.access_token));
           
-          // Initialiser le service de notifications pour l'utilisateur connecté
-          try {
-            await NotificationService.getInstance().initialize(session.user.id);
-          } catch (error) {
-            console.error('Failed to initialize notifications:', error);
+          // Initialiser le service de notifications pour l'utilisateur connecté (seulement si pas anonyme)
+          if (!session.user.is_anonymous) {
+            try {
+              await NotificationService.getInstance().initialize(session.user.id);
+            } catch (error) {
+              console.error('Failed to initialize notifications:', error);
+            }
+          } else {
+            console.log('👤 [ROOT LAYOUT] Anonymous user - skipping notification initialization');
           }
         } else {
+          console.log('🔐 [ROOT LAYOUT] No session found during initialization');
           dispatch(setUser(null));
           dispatch(setSession(null));
         }
@@ -77,20 +89,36 @@ function NavigationLayout() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
+        console.log('🔐 [ROOT LAYOUT] Auth state changed - session found:', {
+          event: _event,
+          userId: session.user.id,
+          email: session.user.email,
+          isAnonymous: session.user.is_anonymous
+        });
+        
         dispatch(setUser({
           id: session.user.id,
           email: session.user.email,
           name: session.user.user_metadata.name || '',
+          is_anonymous: session.user.is_anonymous || false,
         }));
         dispatch(setSession(session.access_token));
         
-        // Initialiser les notifications quand l'utilisateur se connecte
-        try {
-          await NotificationService.getInstance().initialize(session.user.id);
-        } catch (error) {
-          console.error('Failed to initialize notifications on auth change:', error);
+        // Initialiser les notifications quand l'utilisateur se connecte (seulement si pas anonyme)
+        if (!session.user.is_anonymous) {
+          try {
+            await NotificationService.getInstance().initialize(session.user.id);
+          } catch (error) {
+            console.error('Failed to initialize notifications on auth change:', error);
+          }
+        } else {
+          console.log('👤 [ROOT LAYOUT] Anonymous user - skipping notification initialization on auth change');
         }
       } else {
+        console.log('🔐 [ROOT LAYOUT] Auth state changed - session cleared:', {
+          event: _event
+        });
+        
         dispatch(setUser(null));
         dispatch(setSession(null));
         

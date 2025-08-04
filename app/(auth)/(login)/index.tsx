@@ -23,7 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../../../lib/supabase";
 import { FONTS, FONT_SIZES, LINE_HEIGHTS } from "../../../assets/constants/fonts";
 import { useDispatch } from "react-redux";
-import { signIn } from "../../../store/authSlice";
+import { signIn, signInAnonymously } from "../../../store/authSlice";
 import { AppDispatch } from "../../../store";
 import { BlurView } from "expo-blur";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -56,6 +56,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingAnonymous, setLoadingAnonymous] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [lastLoginMethod, setLastLoginMethod] = useState<string | null>(null);
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
@@ -95,6 +96,29 @@ export default function LoginScreen() {
       );
     }
     setLoading(false);
+  };
+
+  // Nouveau: Handler pour la connexion anonyme
+  const handleAnonymousLogin = async () => {
+    setLoadingAnonymous(true);
+    try {
+      const resultAction = await dispatch(signInAnonymously());
+      if (signInAnonymously.fulfilled.match(resultAction)) {
+        await AsyncStorage.setItem("lastLoginMethod", "Invité");
+        router.replace("/(app)");
+      } else {
+        Alert.alert(
+          "Erreur de connexion",
+          "Impossible de se connecter en tant qu'invité. Veuillez réessayer."
+        );
+      }
+    } catch (error: any) {
+      Alert.alert(
+        "Erreur",
+        error.message || "Une erreur est survenue lors de la connexion en tant qu'invité."
+      );
+    }
+    setLoadingAnonymous(false);
   };
 
   return (
@@ -273,6 +297,7 @@ export default function LoginScreen() {
               alignItems: "center",
               borderColor: "grey",
               borderWidth: 0.3,
+              marginBottom: 12,
             }}
           >
             <Text style={{ color: "#3973c4" }}>

@@ -21,6 +21,7 @@ import {
   fetchUserSubscriptionStructure,
   setSelectedDiscipline,
   setSelectedSubDiscipline,
+  setSelectedGrade,
   toggleLike,
   toggleRead,
   toggleThumbsUp,
@@ -29,6 +30,7 @@ import {
   type DisciplineStructure,
 } from '../../store/articlesSlice';
 import FilterHeader from '../../components/FilterHeader';
+import ToggleFilter from '../../components/ToggleFilter';
 import ArticleItem from '../../components/ArticleItem';
 import ArticleModal from '../../components/ArticleModal';
 import TopHeader from '../../components/TopHeader';
@@ -54,7 +56,7 @@ export default function MyArticlesScreen() {
     disciplines,
     selectedGrade,
   } = useAppSelector((state) => state.articles);
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, isAnonymous } = useAppSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
@@ -101,12 +103,15 @@ export default function MyArticlesScreen() {
     [listData]
   );
 
+  // Chargement des disciplines et articles au focus de la page
   useFocusEffect(
     useCallback(() => {
-      if (user?.id) dispatch(fetchUserSubscriptionStructure(user.id));
-      AsyncStorage.getItem('downloadedArticles').then(data => {
-        setDownloadedArticles(data ? JSON.parse(data) : []);
-      });
+      if (user?.id) {
+        dispatch(fetchUserSubscriptionStructure(user.id));
+        AsyncStorage.getItem('downloadedArticles').then(data => {
+          setDownloadedArticles(data ? JSON.parse(data) : []);
+        });
+      }
       return () => {};
     }, [dispatch, user?.id])
   );
@@ -114,16 +119,42 @@ export default function MyArticlesScreen() {
   useEffect(() => {
     setOffset(0);
     setHasLoadedOnce(false);
-  }, [filterType, selectedDiscipline, selectedSubDiscipline, allowedGrades]);
+    setFilterType('all'); // Reset filter type when discipline/subdiscipline changes
+  }, [selectedDiscipline, selectedSubDiscipline, allowedGrades]);
 
   useEffect(() => {
+    // Reload articles when filter type changes for user subscriptions
+    if (hasLoadedOnce && user?.id) {
+      console.log('📖 [MES ARTICLES] Filter type changed, reloading...');
+      setOffset(0);
+      setHasLoadedOnce(false);
+    }
+  }, [filterType]);
+
+  useEffect(() => {
+    // Charger les articles pour les utilisateurs connectés
     if (!hasLoadedOnce && user?.id) {
+      console.log('📖 [MES ARTICLES] Loading user articles...');
       loadArticles(true, 0, filterType, allowedGrades).then(() => setHasLoadedOnce(true));
     }
   }, [hasLoadedOnce, filterType, selectedDiscipline, selectedSubDiscipline, allowedGrades, user?.id]);
 
   const loadArticles = async (isRefreshing = false, customOffset?: number, customFilterType?: typeof filterType, customAllowedGrades: string[] | null = allowedGrades) => {
+    if (!user?.id) {
+      console.log('❌ [MES ARTICLES] loadArticles skipped - no user');
+      return;
+    }
+    
     const currentFilter = customFilterType ?? filterType;
+    console.log('📖 [MES ARTICLES] Loading articles with params:', {
+      discipline: selectedDiscipline,
+      subDiscipline: selectedSubDiscipline,
+      filterByUserSubs: true,
+      userId: user.id,
+      filterType: currentFilter,
+      onlyRecommendations: currentFilter === 'recommandations'
+    });
+    
     const offsetToUse = isRefreshing ? 0 : (customOffset ?? offset);
     await dispatch(fetchArticles({
       discipline: selectedDiscipline,
@@ -131,8 +162,8 @@ export default function MyArticlesScreen() {
       offset: offsetToUse,
       refresh: isRefreshing,
       userId: user?.id,
-      filterByUserSubs: true,
-      onlyRecommendations: currentFilter === 'recommandations',
+      filterByUserSubs: true, // ✅ Seulement les articles auxquels l'user est abonné
+      onlyRecommendations: currentFilter === 'recommandations', // ✅ Filtre serveur pour recommandations
       allowedGrades: customAllowedGrades ?? undefined,
     })).unwrap();
     if (!isRefreshing) setOffset(offsetToUse + 10);
@@ -140,21 +171,45 @@ export default function MyArticlesScreen() {
 
   const handleDisciplineChange = (newDisciplineName: string) => dispatch(setSelectedDiscipline(newDisciplineName));
   const handleSubDisciplineChange = (newSubDisciplineName: string | null) => dispatch(setSelectedSubDiscipline(newSubDisciplineName));
+  const handleGradeChange = (newGrade: string | null) => dispatch(setSelectedGrade(newGrade));
   const handleRefresh = async () => {
+    if (!user?.id) {
+      console.log('❌ [MES ARTICLES] Refresh skipped - no user');
+      return;
+    }
+    
     setRefreshing(true);
     setHasLoadedOnce(false);
-    if (user?.id) await loadArticles(true);
+    console.log('🔄 [MES ARTICLES] Refreshing articles...');
+    await loadArticles(true, 0, filterType, allowedGrades);
     setRefreshing(false);
   };
+
   const handleLoadMore = () => {
-    if (!loadingMyArticles && hasMoreMyArticles && user?.id) {
+    if (!user?.id) {
+      console.log('❌ [MES ARTICLES] LoadMore skipped - no user');
+      return;
+    }
+    
+    if (!loadingMyArticles && hasMoreMyArticles) {
+      console.log('📖 [MES ARTICLES] Loading more articles...');
       loadArticles(false, offset, filterType, allowedGrades);
     }
   };
   const handleOpenLink = async (link: string) => { try { await Linking.openURL(link); } catch (e) { console.error('Error opening link:', e); } };
-  const handleLikePress = (article: Article) => { if (!user?.id) return; dispatch(toggleLike({ articleId: article.article_id, userId: user.id })); };
-  const handleReadPress = (article: Article) => { if (!user?.id) return; dispatch(toggleRead({ articleId: article.article_id, userId: user.id })); };
-  const handleThumbsUpPress = (article: Article) => { if (!user?.id) return; dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id })); };
+  const handleLikePress = (article: Article) => { 
+    if (!user?.id) return; 
+    dispatch(toggleLike({ articleId: article.article_id, userId: user.id })); 
+  };
+  const handleReadPress = (article: Article) => { 
+    if (!user?.id) return; 
+    // La lecture d'articles est autorisée même pour les utilisateurs anonymes (mais ils ne peuvent pas accéder à cette page)
+    dispatch(toggleRead({ articleId: article.article_id, userId: user.id })); 
+  };
+  const handleThumbsUpPress = (article: Article) => { 
+    if (!user?.id) return; 
+    dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id })); 
+  };
   const handleToggleDownload = async (article: Article) => {
     setDownloadLoadingIds(ids => [...ids, article.article_id]);
     try {
@@ -179,8 +234,7 @@ export default function MyArticlesScreen() {
   const openArticleModal = (article: Article) => { setSelectedArticle(article); setModalVisible(true); };
   const closeArticleModal = () => { setModalVisible(false); setSelectedArticle(null); };
 
-  if (errorMyArticles) return <View style={styles.centerContainer}><Text style={styles.errorText}>{errorMyArticles}</Text></View>;
-
+  // Calculer les options de filtres
   const disciplineFilterOptions = ['all', ...disciplines.map(d => d.name)];
   let subDisciplineFilterOptions: string[] = [];
   if (selectedDiscipline !== 'all') {
@@ -190,78 +244,103 @@ export default function MyArticlesScreen() {
     }
   }
 
+  // Loading stylé avec headers visibles
+  const renderLoadingContent = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={COLORS.iconPrimary} />
+      <Text style={styles.loadingText}>Chargement de vos articles...</Text>
+    </View>
+  );
+
+  if (errorMyArticles) {
+    return (
+      <View style={styles.container}>
+        <TopHeader title="Mes articles" />
+        <FilterHeader
+          disciplines={disciplineFilterOptions}
+          subDisciplines={subDisciplineFilterOptions.length > 0 ? ['all', ...subDisciplineFilterOptions] : []}
+          selectedDiscipline={selectedDiscipline}
+          selectedSubDiscipline={selectedSubDiscipline}
+          onDisciplineChange={(discipline) => dispatch(setSelectedDiscipline(discipline))}
+          onSubDisciplineChange={(subDiscipline) => dispatch(setSelectedSubDiscipline(subDiscipline))}
+          selectedGrade={selectedGrade}
+          onGradeChange={(grade) => dispatch(setSelectedGrade(grade))}
+          loadingSubDisciplines={false}
+        />
+        
+        <ToggleFilter
+          filterType={filterType}
+          onFilterChange={setFilterType}
+        />
+        
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorText}>{errorMyArticles}</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <TopHeader title="Mes Articles" />
-      
-    
-      
+      <TopHeader title="Mes articles" />
       <FilterHeader
         disciplines={disciplineFilterOptions}
-        subDisciplines={subDisciplineFilterOptions}
+        subDisciplines={subDisciplineFilterOptions.length > 0 ? ['all', ...subDisciplineFilterOptions] : []}
         selectedDiscipline={selectedDiscipline}
         selectedSubDiscipline={selectedSubDiscipline}
+        onDisciplineChange={(discipline) => dispatch(setSelectedDiscipline(discipline))}
+        onSubDisciplineChange={(subDiscipline) => dispatch(setSelectedSubDiscipline(subDiscipline))}
         selectedGrade={selectedGrade}
-        onDisciplineChange={handleDisciplineChange}
-        onSubDisciplineChange={handleSubDisciplineChange}
-        onGradeChange={(newGrade) => {}}
+        onGradeChange={(grade) => dispatch(setSelectedGrade(grade))}
         loadingSubDisciplines={false}
       />
-        {/* Toggle filter */}
-        <View style={{ flexDirection: 'row', justifyContent: 'center', marginVertical: 10 }}>
-        <TouchableOpacity
-          style={[styles.toggleButton, filterType === 'all' && styles.toggleButtonActive]}
-          onPress={() => setFilterType('all')}
-        >
-          <Text style={[styles.toggleButtonText, filterType === 'all' && styles.toggleButtonTextActive]}>Tous</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toggleButton, filterType === 'articles' && styles.toggleButtonActive]}
-          onPress={() => setFilterType('articles')}
-        >
-          <Text style={[styles.toggleButtonText, filterType === 'articles' && styles.toggleButtonTextActive]}>Articles</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toggleButton, filterType === 'recommandations' && styles.toggleButtonActive]}
-          onPress={() => setFilterType('recommandations')}
-        >
-          <Text style={[styles.toggleButtonText, filterType === 'recommandations' && styles.toggleButtonTextActive]}>Recommandations</Text>
-        </TouchableOpacity>
-      </View>
       
-      <FlashList
-        data={listData}
-        renderItem={({ item }: ListRenderItemInfo<MyListItem>) => {
-          if (typeof item === 'string') {
-            return <Text style={styles.sectionHeader}>{item}</Text>;
-          } else {
-            return (
-              <ArticleItem
-                article={item as Article}
-                onPress={openArticleModal}
-                onLinkPress={handleOpenLink}
-                onLikePress={handleLikePress}
-                onThumbsUpPress={handleThumbsUpPress}
-                onToggleDownloadPress={handleToggleDownload}
-                isDownloaded={downloadedArticles.some((a: any) => a.article_id === (item as Article).article_id)}
-                isDownloadLoading={downloadLoadingIds.includes((item as Article).article_id)}
-              />
-            );
-          }
-        }}
-        getItemType={(item: MyListItem) => typeof item === 'string' ? 'sectionHeader' : 'row'}
-        stickyHeaderIndices={stickyHeaderIndices}
-        estimatedItemSize={150}
-        keyExtractor={(item) => typeof item === 'string' ? item : (item as Article).article_id.toString()}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        ListFooterComponent={loadingMyArticles && !refreshing ? <ActivityIndicator size="large" color={COLORS.iconPrimary} style={styles.loader} /> : null}
-        ListEmptyComponent={!loadingMyArticles && !refreshing && myArticles.length === 0 ?
-          <View style={styles.emptyContainer}><Text style={styles.emptyText}>Aucun article trouvé dans votre veille.</Text></View> : null}
-        extraData={downloadedVersion}
+      {/* Toggle filter */}
+      <ToggleFilter
+        filterType={filterType}
+        onFilterChange={setFilterType}
       />
+      
+      {/* Contenu conditionnel : Loading stylé ou Liste */}
+      {(loadingMyArticles && !refreshing && !hasLoadedOnce) ? renderLoadingContent() : (
+        <FlashList
+          data={listData}
+          renderItem={({ item }: ListRenderItemInfo<MyListItem>) => {
+            if (typeof item === 'string') {
+              return (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionHeaderText}>{item}</Text>
+                </View>
+              );
+            } else {
+              return (
+                <ArticleItem
+                  article={item}
+                  onPress={openArticleModal}
+                  onLinkPress={handleOpenLink}
+                  onLikePress={handleLikePress}
+                  onThumbsUpPress={handleThumbsUpPress}
+                  onToggleDownloadPress={handleToggleDownload}
+                  isDownloaded={downloadedArticles.some((a: any) => a.article_id === (item as Article).article_id)}
+                  isDownloadLoading={downloadLoadingIds.includes((item as Article).article_id)}
+                />
+              );
+            }
+          }}
+          getItemType={(item: MyListItem) => typeof item === 'string' ? 'sectionHeader' : 'row'}
+          stickyHeaderIndices={stickyHeaderIndices}
+          estimatedItemSize={150}
+          keyExtractor={(item) => typeof item === 'string' ? item : (item as Article).article_id.toString()}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+          ListFooterComponent={loadingMyArticles && !refreshing ? <ActivityIndicator size="large" color={COLORS.iconPrimary} style={styles.loader} /> : null}
+          ListEmptyComponent={!loadingMyArticles && !refreshing && myArticles.length === 0 ?
+            <View style={styles.emptyContainer}><Text style={styles.emptyText}>Aucun article trouvé dans votre veille.</Text></View> : null}
+          extraData={downloadedVersion}
+        />
+      )}
 
       <ArticleModal visible={modalVisible} article={selectedArticle} onClose={closeArticleModal} />
     </View>
@@ -289,49 +368,46 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.base, 
     fontFamily: FONTS.sans.regular 
   } as TextStyle,
-  loader: { 
-    padding: 20 
-  } as ViewStyle,
   emptyContainer: { 
     flex: 1, 
     justifyContent: 'center', 
     alignItems: 'center', 
-    padding: 20, 
-    backgroundColor: COLORS.backgroundPrimary,
+    padding: 40 
   } as ViewStyle,
   emptyText: { 
-    fontSize: FONT_SIZES.base, 
-    fontFamily: FONTS.sans.regular, 
     color: COLORS.textSecondary,
+    textAlign: 'center', 
+    fontSize: FONT_SIZES.base, 
+    fontFamily: FONTS.sans.medium 
   } as TextStyle,
+  loader: { 
+    marginVertical: 20 
+  } as ViewStyle,
   sectionHeader: {
-    fontSize: FONT_SIZES.xl,
+    backgroundColor: COLORS.backgroundSecondary,
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+  } as ViewStyle,
+  sectionHeaderText: {
+    fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.sans.bold,
-    backgroundColor: COLORS.backgroundPrimary,
     paddingVertical: 12,
     paddingHorizontal: 15, 
     color: COLORS.textPrimary,
     textTransform: 'uppercase',
     fontWeight: '600',
   } as TextStyle,
-  toggleButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.borderPrimary,
-    marginHorizontal: 4,
-    backgroundColor: COLORS.backgroundSecondary,
-  },
-  toggleButtonActive: {
-    backgroundColor: COLORS.buttonBackgroundPrimary,
-    borderColor: COLORS.buttonBackgroundPrimary,
-  },
-  toggleButtonText: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: COLORS.backgroundPrimary,
+  } as ViewStyle,
+  loadingText: {
+    marginTop: 10,
     color: COLORS.textSecondary,
-    fontWeight: 'bold',
-  },
-  toggleButtonTextActive: {
-    color: COLORS.buttonTextPrimary,
-  },
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+  } as TextStyle,
 }); 

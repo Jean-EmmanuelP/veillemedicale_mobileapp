@@ -10,6 +10,7 @@ interface UserProfile {
   specialty: string;
   date_of_birth: string;
   notification_frequency: string;
+  minimum_grade_notification: string;
   grade_preferences: string[];
   subscriptions: {
     discipline_id: number;
@@ -64,6 +65,8 @@ const initialState: ProfileState = {
 export const fetchProfile = createAsyncThunk(
   'profile/fetchProfile',
   async (userId: string) => {
+    console.log('📋 [PROFILE SLICE] fetchProfile started for userId:', userId);
+    
     // Fetch user profile
     const { data: userProfile, error: profileError } = await supabase
       .from('user_profiles')
@@ -71,7 +74,18 @@ export const fetchProfile = createAsyncThunk(
       .eq('id', userId)
       .single();
 
-    if (profileError) throw profileError;
+    if (profileError) {
+      console.error('❌ [PROFILE SLICE] Error fetching user profile:', profileError);
+      throw profileError;
+    }
+
+    console.log('✅ [PROFILE SLICE] User profile fetched:', {
+      userId: userProfile.id,
+      firstName: userProfile.first_name,
+      lastName: userProfile.last_name,
+      email: userProfile.email,
+      status: userProfile.status
+    });
 
     // Fetch disciplines
     const { data: disciplines, error: disciplinesError } = await supabase
@@ -83,7 +97,14 @@ export const fetchProfile = createAsyncThunk(
       `)
       .order('name', { ascending: true });
 
-    if (disciplinesError) throw disciplinesError;
+    if (disciplinesError) {
+      console.error('❌ [PROFILE SLICE] Error fetching disciplines:', disciplinesError);
+      throw disciplinesError;
+    }
+
+    console.log('✅ [PROFILE SLICE] Disciplines fetched:', {
+      count: disciplines?.length || 0
+    });
 
     // Fetch user subscriptions
     const { data: subscriptions, error: subsError } = await supabase
@@ -91,7 +112,15 @@ export const fetchProfile = createAsyncThunk(
       .select('discipline_id, sub_discipline_id')
       .eq('user_id', userId);
 
-    if (subsError) throw subsError;
+    if (subsError) {
+      console.error('❌ [PROFILE SLICE] Error fetching subscriptions:', subsError);
+      throw subsError;
+    }
+
+    console.log('✅ [PROFILE SLICE] User subscriptions fetched:', {
+      count: subscriptions?.length || 0,
+      subscriptions: subscriptions
+    });
 
     // Fetch grade preferences
     const { data: gradePreferences, error: gradesError } = await supabase
@@ -99,14 +128,25 @@ export const fetchProfile = createAsyncThunk(
       .select('grade')
       .eq('user_id', userId);
 
-    if (gradesError) throw gradesError;
+    if (gradesError) {
+      console.error('❌ [PROFILE SLICE] Error fetching grade preferences:', gradesError);
+      throw gradesError;
+    }
 
-    return {
+    console.log('✅ [PROFILE SLICE] Grade preferences fetched:', {
+      grades: gradePreferences?.map(g => g.grade) || []
+    });
+
+    const result = {
       profile: userProfile,
       disciplines,
       subscriptions,
       gradePreferences: gradePreferences.map(g => g.grade)
     };
+
+    console.log('🎉 [PROFILE SLICE] fetchProfile completed successfully for userId:', userId);
+    
+    return result;
   }
 );
 
@@ -124,12 +164,16 @@ export const updateProfile = createAsyncThunk(
     gradePreferences: string[];
   }) => {
     // 1. Update profile
+    console.log('📝 [PROFILE SLICE] Updating profile:', profile);
     const { error: profileError } = await supabase
       .from('user_profiles')
       .update(profile)
       .eq('id', userId);
 
-    if (profileError) throw profileError;
+    if (profileError) {
+      console.error('❌ [PROFILE SLICE] Error updating profile:', profileError);
+      throw profileError;
+    }
 
     // 2. Update grade preferences
     // First delete existing preferences
@@ -201,16 +245,36 @@ const profileSlice = createSlice({
       .addCase(fetchProfile.pending, (state) => {
         state.loading = true;
         state.error = null;
+        console.log('⏳ [PROFILE SLICE] fetchProfile.pending: Loading profile...');
       })
       .addCase(fetchProfile.fulfilled, (state, action) => {
         state.loading = false;
         state.profile = action.payload.profile;
         state.disciplines = action.payload.disciplines;
         state.currentSubscriptions = action.payload.subscriptions;
+        console.log('✅ [PROFILE SLICE] fetchProfile.fulfilled: Profile loaded in Redux state:', {
+          profileId: action.payload.profile.id,
+          firstName: action.payload.profile.first_name,
+          email: action.payload.profile.email,
+          disciplinesCount: action.payload.disciplines.length,
+          subscriptionsCount: action.payload.subscriptions.length
+        });
       })
       .addCase(fetchProfile.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Une erreur est survenue';
+        
+        // Ne pas afficher l'erreur "no rows returned" pour les utilisateurs anonymes
+        const errorMessage = action.error.message || '';
+        const isNoRowsError = errorMessage.includes('JSON object requested') && 
+                             (errorMessage.includes('multiple') || errorMessage.includes('no rows'));
+        
+        if (isNoRowsError) {
+          console.log('🔇 [PROFILE SLICE] fetchProfile.rejected: Suppressing "no rows" error (likely anonymous user)');
+          state.error = null; // Ne pas afficher l'erreur
+        } else {
+          console.error('❌ [PROFILE SLICE] fetchProfile.rejected:', errorMessage);
+          state.error = errorMessage || 'Une erreur est survenue';
+        }
       })
       .addCase(updateProfile.pending, (state) => {
         state.loading = true;
