@@ -71,7 +71,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.sans?.bold || FONTS.bold,
-    textTransform: 'uppercase',
     flex: 1,
   } as TextStyle,
   profileButton: {

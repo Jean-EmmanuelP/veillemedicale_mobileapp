@@ -212,18 +212,19 @@ export const toggleLike = createAsyncThunk(
   'articles/toggleLike',
   async ({ articleId, userId }: { articleId: number; userId: string }, { getState }) => {
     const state = getState() as RootState;
-    
+
     // Vérifier si l'utilisateur est anonyme - ne pas faire d'appels DB
     if (state.auth.isAnonymous) {
       console.log('👤 [ARTICLES] toggleLike skipped for anonymous user');
       throw new Error('Anonymous users cannot like articles');
     }
-    
+
     console.log('❤️ [ARTICLES] toggleLike for article:', articleId, 'user:', userId);
-    
+
     const articleFromItems = state.articles.items.find(a => a.article_id === articleId);
     const articleFromMyArticles = state.articles.myArticles.find(a => a.article_id === articleId);
-    const article = articleFromItems || articleFromMyArticles;
+    const articleFromLiked = state.articles.likedArticles.find(a => a.article_id === articleId);
+    const article = articleFromItems || articleFromMyArticles || articleFromLiked;
     if (!article) throw new Error('Article not found');
     let opError;
     if (article.is_liked) {
@@ -247,18 +248,19 @@ export const toggleRead = createAsyncThunk(
   'articles/toggleRead',
   async ({ articleId, userId }: { articleId: number; userId: string }, { getState }) => {
     const state = getState() as RootState;
-    
+
     // Vérifier si l'utilisateur est anonyme - ne pas faire d'appels DB
     if (state.auth.isAnonymous) {
       console.log('👤 [ARTICLES] toggleRead skipped for anonymous user');
       throw new Error('Anonymous users cannot mark articles as read');
     }
-    
+
     console.log('📖 [ARTICLES] toggleRead for article:', articleId, 'user:', userId);
-    
+
     const articleFromItems = state.articles.items.find(a => a.article_id === articleId);
     const articleFromMyArticles = state.articles.myArticles.find(a => a.article_id === articleId);
-    const article = articleFromItems || articleFromMyArticles;
+    const articleFromLiked = state.articles.likedArticles.find(a => a.article_id === articleId);
+    const article = articleFromItems || articleFromMyArticles || articleFromLiked;
     if (!article) throw new Error('Article not found');
     let opError;
     if (article.is_read) {

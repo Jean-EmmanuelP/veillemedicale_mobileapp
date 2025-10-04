@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Linking,
   Platform,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import { useFocusEffect } from '@react-navigation/native';
@@ -70,6 +71,48 @@ export default function ArticlesScreen() {
   const [downloadedVersion, setDownloadedVersion] = useState(0);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestModalFeature, setGuestModalFeature] = useState<string>('');
+
+  const lastScrollY = useRef(0);
+  const headerTranslateY = useRef(new Animated.Value(0)).current;
+  const scrollDirection = useRef<'up' | 'down' | null>(null);
+
+  const HEADER_HEIGHT = 300; // TopHeader + FilterHeader + ToggleFilter height
+
+  const handleScroll = useCallback((event: any) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const diff = currentScrollY - lastScrollY.current;
+
+    // Ignore tiny scroll movements
+    if (Math.abs(diff) < 3) {
+      return;
+    }
+
+    const newDirection = diff > 0 ? 'down' : 'up';
+
+    // Only animate if direction changed or we're past threshold
+    if (newDirection === 'down' && currentScrollY > 100) {
+      if (scrollDirection.current !== 'down') {
+        scrollDirection.current = 'down';
+        Animated.timing(headerTranslateY, {
+          toValue: -HEADER_HEIGHT,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      }
+    } else if (newDirection === 'up' && diff < -50) {
+      // Require stronger upward scroll to show header
+      if (scrollDirection.current !== 'up') {
+        scrollDirection.current = 'up';
+        Animated.timing(headerTranslateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+
+    lastScrollY.current = currentScrollY;
+  }, [headerTranslateY, HEADER_HEIGHT]);
 
   const allowedGrades = useMemo(() => {
     if (!selectedGrade || selectedGrade === 'all') return null;
@@ -290,7 +333,7 @@ export default function ArticlesScreen() {
   if (errorArticles) {
     return (
       <View style={styles.container}>
-        <TopHeader title="LES ARTICLES" />
+        <TopHeader title="Les articles" />
         <FilterHeader
           disciplines={['all', ...allDisciplines.map(d => d.name)]}
           subDisciplines={subDisciplineFilterOptions.length > 0 ? ['all', ...subDisciplineFilterOptions] : []}
@@ -325,24 +368,33 @@ export default function ArticlesScreen() {
 
   return (
     <View style={styles.container}>
-      <TopHeader title="LES ARTICLES" />
-      <FilterHeader
-        disciplines={['all', ...allDisciplines.map(d => d.name)]}
-        subDisciplines={subDisciplineFilterOptions.length > 0 ? ['all', ...subDisciplineFilterOptions] : []}
-        selectedDiscipline={selectedDiscipline}
-        selectedSubDiscipline={selectedSubDiscipline}
-        onDisciplineChange={handleDisciplineChange}
-        onSubDisciplineChange={handleSubDisciplineChange}
-        selectedGrade={selectedGrade}
-        onGradeChange={handleGradeChange}
-        loadingSubDisciplines={false}
-      />
-      
-      {/* Toggle filter */}
-      <ToggleFilter
-        filterType={filterType}
-        onFilterChange={setFilterType}
-      />
+      <Animated.View
+        style={[
+          styles.animatedHeader,
+          {
+            transform: [{ translateY: headerTranslateY }],
+          },
+        ]}
+      >
+        <TopHeader title="Les articles" />
+        <FilterHeader
+          disciplines={['all', ...allDisciplines.map(d => d.name)]}
+          subDisciplines={subDisciplineFilterOptions.length > 0 ? ['all', ...subDisciplineFilterOptions] : []}
+          selectedDiscipline={selectedDiscipline}
+          selectedSubDiscipline={selectedSubDiscipline}
+          onDisciplineChange={handleDisciplineChange}
+          onSubDisciplineChange={handleSubDisciplineChange}
+          selectedGrade={selectedGrade}
+          onGradeChange={handleGradeChange}
+          loadingSubDisciplines={false}
+        />
+
+        {/* Toggle filter */}
+        <ToggleFilter
+          filterType={filterType}
+          onFilterChange={setFilterType}
+        />
+      </Animated.View>
       
       {/* Contenu conditionnel : Loading stylé ou Liste */}
       {(loadingArticles && !refreshing && !hasLoadedOnce) ? renderLoadingContent() : (
@@ -386,6 +438,8 @@ export default function ArticlesScreen() {
             }
             return (item as Article).article_id.toString();
           }}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           contentContainerStyle={styles.listContainer}
@@ -419,11 +473,21 @@ export default function ArticlesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: COLORS.backgroundPrimary
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundPrimary,
+    overflow: 'hidden',
+  } as ViewStyle,
+  animatedHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    backgroundColor: COLORS.backgroundPrimary,
   } as ViewStyle,
   listContainer: {
+    paddingTop: 300, // Space for animated header
     paddingBottom: 100, // Space for glassmorphism navbar
   } as ViewStyle,
   centerContainer: { 
@@ -465,7 +529,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 15, 
     color: COLORS.textPrimary,
-    textTransform: 'uppercase',
+    textTransform: 'capitalize',
     fontWeight: '600',
   } as TextStyle,
   loadingContainer: {

@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { fetchLikedArticles, toggleLike, toggleThumbsUp } from '../../store/articlesSlice';
 import ArticleItem from '../../components/ArticleItem';
+import ArticleModal from '../../components/ArticleModal';
 import TopHeader from '../../components/TopHeader';
 import { Article } from '../../types';
 import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
@@ -29,6 +30,8 @@ export default function FavoritesScreen() {
   const { likedArticles, loadingLikedArticles, errorLikedArticles } = useAppSelector((state) => state.articles);
   
   const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [downloadedArticles, setDownloadedArticles] = useState<any[]>([]);
   const [downloadLoadingIds, setDownloadLoadingIds] = useState<number[]>([]);
   const [likeLoadingIds, setLikeLoadingIds] = useState<number[]>([]);
@@ -190,8 +193,14 @@ export default function FavoritesScreen() {
   };
 
   const handleArticlePress = (article: Article) => {
-    // Navigation vers l'article ou modal (à implémenter)
     console.log('📰 [FAVORITES] Article pressed:', article.article_id);
+    setSelectedArticle(article);
+    setModalVisible(true);
+  };
+
+  const closeArticleModal = () => {
+    setModalVisible(false);
+    setSelectedArticle(null);
   };
 
   const handleLinkPress = (link: string) => {
@@ -296,6 +305,13 @@ export default function FavoritesScreen() {
           ) : null}
         />
       )}
+
+      <ArticleModal
+        visible={modalVisible}
+        article={selectedArticle}
+        onClose={closeArticleModal}
+        onLinkPress={handleLinkPress}
+      />
     </View>
   );
 }

@@ -906,7 +906,7 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.gradeExplanation}>
-                  Sélectionnez votre grade minimum pour recevoir les recommandations de ce grade et de tous les grades supérieurs.
+                  Sélectionnez votre grade minimum pour recevoir les recommandations de ce grade et de Grades supérieurs.
                 </Text>
                 <View style={styles.gradeContainer}>
                   {['A', 'B', 'C'].map((grade) => {
@@ -1242,7 +1242,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.lg,
     textAlign: 'center',
     fontFamily: FONTS.sans.bold,
-    textTransform: 'uppercase',
+    textTransform: 'capitalize',
   },
   headerSpacer: {
     width: 32, // Same width as back button to center the title
@@ -1346,18 +1346,17 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   gradeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     marginTop: 15,
-    gap: 10,
+    gap: 12,
   },
   cleanGradeButton: {
-    flex: 1,
+    width: '100%',
     borderWidth: 1,
     borderColor: '#424242',
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: '#1C1C1C',
-    minHeight: 90,
+    minHeight: 70,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -1422,24 +1421,24 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   gradeContent: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     padding: 16,
-    gap: 8,
+    gap: 12,
   },
   cleanGradeText: {
     fontFamily: FONTS.sans.medium,
-    color: '#616161',
-    fontSize: FONT_SIZES.sm,
-    textAlign: 'center',
+    color: '#9E9E9E',
+    fontSize: FONT_SIZES.base,
+    flex: 1,
   },
   cleanGradeTextSelected: {
     fontFamily: FONTS.sans.semibold,
-    color: COLORS.buttonBackgroundPrimary,
+    color: COLORS.textPrimary,
   },
   selectedIndicator: {
-    marginTop: 4,
+    marginLeft: 'auto',
   },
   superModernGradeText: {
     fontFamily: FONTS.sans.medium,

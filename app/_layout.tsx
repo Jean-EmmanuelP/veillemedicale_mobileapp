@@ -11,7 +11,6 @@ import { ActivityIndicator, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import NotificationService from '../services/NotificationService';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import 'react-native-reanimated';
 import 'react-native-url-polyfill/auto';
 
@@ -158,6 +157,8 @@ function NavigationLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
+      <Stack.Screen name="discipline-modal" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="subdiscipline-modal" options={{ presentation: 'modal', headerShown: false }} />
     </Stack>
   );
 }
@@ -200,9 +201,7 @@ export default function RootLayout() {
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <BottomSheetModalProvider>
-            <NavigationLayout />
-          </BottomSheetModalProvider>
+          <NavigationLayout />
         </GestureHandlerRootView>
       </PersistGate>
     </Provider>
