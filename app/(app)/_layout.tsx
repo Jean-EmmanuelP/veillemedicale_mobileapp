@@ -82,10 +82,10 @@ export default function AppLayout() {
 
   return (
     <>
-      <Tabs 
+      <Tabs
         screenOptions={{
-          headerShown: false, 
-          tabBarShowLabel: false,
+          headerShown: false,
+          tabBarShowLabel: true,
           tabBarStyle: {
             position: 'absolute',
             bottom: 0,
@@ -106,6 +106,11 @@ export default function AppLayout() {
           tabBarActiveTintColor: COLORS.tabBarActiveTint,
           tabBarInactiveTintColor: COLORS.tabBarInactiveTint,
           tabBarBackground: () => <MenuBlur />,
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: '500',
+            marginTop: 2,
+          },
         }}
       >
         <Tabs.Screen

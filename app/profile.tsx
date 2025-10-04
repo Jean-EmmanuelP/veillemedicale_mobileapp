@@ -896,17 +896,17 @@ export default function ProfileScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>
-                  Grade de recommandation minimum souhaité
+                <View style={styles.labelWithInfo}>
+                  <Text style={styles.label}>Grade de recommandation minimum</Text>
                   <TouchableOpacity
                     onPress={() => setShowGradeInfo(!showGradeInfo)}
-                    style={styles.infoButton}
+                    style={styles.infoIconButton}
                   >
-                    <Ionicons name="information" size={12} color={COLORS.white} />
+                    <Ionicons name="information-circle-outline" size={20} color={COLORS.iconSecondary} />
                   </TouchableOpacity>
-                </Text>
+                </View>
                 <Text style={styles.gradeExplanation}>
-                  Sélectionnez votre grade minimum. Vous recevrez les recommandations de ce grade et de tous les grades supérieurs.
+                  Sélectionnez votre grade minimum pour recevoir les recommandations de ce grade et de tous les grades supérieurs.
                 </Text>
                 <View style={styles.gradeContainer}>
                   {['A', 'B', 'C'].map((grade) => {
@@ -916,32 +916,26 @@ export default function ProfileScreen() {
                       <TouchableOpacity
                         key={grade}
                         style={[
-                          styles.superModernGradeButton,
-                          isMinimumGrade && styles.superModernGradeButtonMinimum,
-                          isIncluded && !isMinimumGrade && styles.superModernGradeButtonIncluded,
+                          styles.cleanGradeButton,
+                          isMinimumGrade && styles.cleanGradeButtonSelected,
                         ]}
                         onPress={() => handleMinimumGradeChange(grade)}
                       >
                         <View style={styles.gradeContent}>
-                          {renderGradeStars(grade, 16)}
+                          {renderGradeStars(grade, 18)}
                           <Text
                             style={[
-                              styles.superModernGradeText,
-                              isMinimumGrade && styles.superModernGradeTextMinimum,
-                              isIncluded && !isMinimumGrade && styles.superModernGradeTextIncluded,
+                              styles.cleanGradeText,
+                              isMinimumGrade && styles.cleanGradeTextSelected,
                             ]}
                           >
                             Grade {grade}
                           </Text>
-                          <Text
-                            style={[
-                              styles.gradeStatus,
-                              isMinimumGrade && styles.gradeStatusMinimum,
-                              isIncluded && !isMinimumGrade && styles.gradeStatusIncluded,
-                            ]}
-                          >
-                            {isMinimumGrade ? 'MINIMUM' : isIncluded ? 'INCLUS' : 'Non inclus'}
-                          </Text>
+                          {isMinimumGrade && (
+                            <View style={styles.selectedIndicator}>
+                              <Ionicons name="checkmark-circle" size={16} color={COLORS.buttonBackgroundPrimary} />
+                            </View>
+                          )}
                         </View>
                       </TouchableOpacity>
                     );
@@ -975,34 +969,34 @@ export default function ProfileScreen() {
               <View style={styles.inputContainer}>
                 <View style={styles.specialtyHeaderContainer}>
                   <View style={styles.specialtyTitleContainer}>
-                    <Text style={styles.label}>Spécialités et sous-spécialités suivies</Text>
+                    <Text style={styles.label}>Spécialités suivies</Text>
                     <Text style={[
                       styles.specialtyStats,
                       (() => {
                         const originalSubscriptionsSet = new Set(
-                          currentSubscriptions.map(sub => 
+                          currentSubscriptions.map(sub =>
                             sub.sub_discipline_id ? `s:${sub.sub_discipline_id}` : `d:${sub.discipline_id}`
                           )
                         );
-                        const hasChanges = 
+                        const hasChanges =
                           currentSubscriptionsSet.size !== originalSubscriptionsSet.size ||
                           Array.from(currentSubscriptionsSet).some(sub => !originalSubscriptionsSet.has(sub)) ||
                           Array.from(originalSubscriptionsSet).some(sub => !currentSubscriptionsSet.has(sub));
-                        
+
                         return hasChanges ? styles.specialtyStatsModified : null;
                       })()
                     ]}>
                       {(() => {
                         const originalCount = currentSubscriptions.length;
                         const currentCount = currentSubscriptionsSet.size;
-                        
+
                         if (currentCount === 0) {
                           return 'Aucune sélection';
                         }
-                        
+
                         const hasChanges = (() => {
                           const originalSubscriptionsSet = new Set(
-                            currentSubscriptions.map(sub => 
+                            currentSubscriptions.map(sub =>
                               sub.sub_discipline_id ? `s:${sub.sub_discipline_id}` : `d:${sub.discipline_id}`
                             )
                           );
@@ -1010,7 +1004,7 @@ export default function ProfileScreen() {
                             Array.from(currentSubscriptionsSet).some(sub => !originalSubscriptionsSet.has(sub)) ||
                             Array.from(originalSubscriptionsSet).some(sub => !currentSubscriptionsSet.has(sub));
                         })();
-                        
+
                         const baseText = `${currentCount} sélectionnée${currentCount > 1 ? 's' : ''}`;
                         return hasChanges ? `${baseText} (modifié)` : baseText;
                       })()}
@@ -1019,20 +1013,20 @@ export default function ProfileScreen() {
                   {(() => {
                     // Calculer l'état original depuis la base de données
                     const originalSubscriptionsSet = new Set(
-                      currentSubscriptions.map(sub => 
+                      currentSubscriptions.map(sub =>
                         sub.sub_discipline_id ? `s:${sub.sub_discipline_id}` : `d:${sub.discipline_id}`
                       )
                     );
-                    
+
                     // Vérifier s'il y a des changements
-                    const hasChanges = 
+                    const hasChanges =
                       currentSubscriptionsSet.size !== originalSubscriptionsSet.size ||
                       Array.from(currentSubscriptionsSet).some(sub => !originalSubscriptionsSet.has(sub)) ||
                       Array.from(originalSubscriptionsSet).some(sub => !currentSubscriptionsSet.has(sub));
-                    
+
                     return hasChanges ? (
-                      <TouchableOpacity 
-                        style={styles.resetButton}
+                      <TouchableOpacity
+                        style={styles.cleanResetButton}
                         onPress={() => {
                           console.log('🔄 [PROFILE] Resetting specialties to saved state');
                           console.log('🔄 [PROFILE] Restoring to original subscriptions:', {
@@ -1042,77 +1036,11 @@ export default function ProfileScreen() {
                           setCurrentSubscriptionsSet(originalSubscriptionsSet);
                         }}
                       >
-                        <Ionicons name="refresh-outline" size={12} color={COLORS.textSecondary} />
-                        <Text style={styles.resetButtonText}>Réinitialiser</Text>
+                        <Ionicons name="refresh-outline" size={16} color={COLORS.iconSecondary} />
                       </TouchableOpacity>
                     ) : null;
                   })()}
                 </View>
-                
-                {/* Résumé des spécialités suivies */}
-                {currentSubscriptionsSet.size > 0 && (
-                  <View style={styles.summaryContainer}>
-                    <Text style={styles.summaryTitle}>
-                      ✅ Spécialités actuellement suivies
-                    </Text>
-                    <View style={styles.summaryItems}>
-                      {/* Spécialités principales */}
-                      {Array.from(currentSubscriptionsSet)
-                        .filter(sub => sub.startsWith('d:'))
-                        .map((sub, index) => {
-                          const [type, id] = sub.split(':');
-                          const discipline = disciplines.find(d => d.id === parseInt(id));
-                          const selectedSubsCount = discipline?.sub_disciplines.filter(subDisc => 
-                            currentSubscriptionsSet.has(`s:${subDisc.id}`)
-                          ).length || 0;
-                          
-                          return (
-                            <View key={index} style={styles.summaryMainItem}>
-                              <View style={styles.summaryItemHeader}>
-                                <Ionicons name="medical" size={14} color={COLORS.success} />
-                                <Text style={styles.summaryMainItemText}>{discipline?.name}</Text>
-                                <View style={styles.specialtyMainBadge}>
-                                  <Text style={styles.specialtyMainBadgeText}>PRINCIPALE</Text>
-                                </View>
-                              </View>
-                              {selectedSubsCount > 0 && (
-                                <Text style={styles.subSpecialtyInfo}>
-                                  + {selectedSubsCount} sous-spécialité{selectedSubsCount > 1 ? 's' : ''}
-                                </Text>
-                              )}
-                            </View>
-                          );
-                        })}
-                      
-                      {/* Sous-spécialités orphelines (sans spécialité principale) */}
-                      {Array.from(currentSubscriptionsSet)
-                        .filter(sub => {
-                          if (!sub.startsWith('s:')) return false;
-                          const [, subId] = sub.split(':');
-                          const parentDiscipline = disciplines.find(d => 
-                            d.sub_disciplines.some(s => s.id === parseInt(subId))
-                          );
-                          return parentDiscipline && !currentSubscriptionsSet.has(`d:${parentDiscipline.id}`);
-                        })
-                        .map((sub, index) => {
-                          const [, id] = sub.split(':');
-                          const subDiscipline = disciplines
-                            .flatMap(d => d.sub_disciplines)
-                            .find(s => s.id === parseInt(id));
-                          
-                          return (
-                            <View key={`orphan-${index}`} style={styles.summarySubItem}>
-                              <Ionicons name="arrow-forward" size={12} color={COLORS.iconSecondary} />
-                              <Text style={styles.summarySubItemText}>{subDiscipline?.name}</Text>
-                              <View style={styles.specialtySubBadge}>
-                                <Text style={styles.specialtySubBadgeText}>SOUS</Text>
-                              </View>
-                            </View>
-                          );
-                        })}
-                    </View>
-                  </View>
-                )}
 
                 <ScrollView style={styles.disciplinesContainer}>
                   {disciplines.map((discipline) => {
@@ -1229,11 +1157,13 @@ export default function ProfileScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={COLORS.white} />
+                <ActivityIndicator color="#1C1C1C" />
               ) : (
                 <View style={styles.buttonContent}>
                   <Ionicons name="checkmark-circle" size={20} color={COLORS.white} />
-                  <Text style={styles.modernSaveButtonText}>Enregistrer les modifications</Text>
+                  <Text style={styles.modernSaveButtonText}>
+                    {saveSuccess ? 'Enregistrement effectué' : 'Enregistrer les modifications'}
+                  </Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -1419,7 +1349,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 15,
-    gap: 8,
+    gap: 10,
+  },
+  cleanGradeButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#424242',
+    borderRadius: 16,
+    backgroundColor: '#1C1C1C',
+    minHeight: 90,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  cleanGradeButtonSelected: {
+    backgroundColor: '#1E3A5F',
+    borderColor: COLORS.buttonBackgroundPrimary,
+    borderWidth: 2,
   },
   superModernGradeButton: {
     flex: 1,
@@ -1480,8 +1425,21 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
-    paddingTop: 16,
+    padding: 16,
+    gap: 8,
+  },
+  cleanGradeText: {
+    fontFamily: FONTS.sans.medium,
+    color: '#616161',
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'center',
+  },
+  cleanGradeTextSelected: {
+    fontFamily: FONTS.sans.semibold,
+    color: COLORS.buttonBackgroundPrimary,
+  },
+  selectedIndicator: {
+    marginTop: 4,
   },
   superModernGradeText: {
     fontFamily: FONTS.sans.medium,
@@ -1527,59 +1485,50 @@ const styles = StyleSheet.create({
   },
   modernSaveButton: {
     backgroundColor: COLORS.buttonBackgroundPrimary,
-    padding: 18,
-    borderRadius: 15,
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 15,
-    shadowColor: COLORS.buttonBackgroundPrimary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   modernSaveButtonText: {
     color: COLORS.buttonTextPrimary,
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.bold,
+    fontFamily: FONTS.sans.semibold,
     marginLeft: 8,
+    letterSpacing: 0.2,
   },
   modernLogoutButton: {
-    backgroundColor: COLORS.backgroundPrimary,
-    padding: 18,
-    borderRadius: 15,
+    backgroundColor: 'transparent',
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.borderPrimary,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: '#E0E0E0',
+    marginBottom: 12,
   },
   modernLogoutButtonText: {
-    color: COLORS.textPrimary,
+    color: '#616161',
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.bold,
+    fontFamily: FONTS.sans.medium,
     marginLeft: 8,
   },
   modernDeleteAccountButton: {
-    backgroundColor: '#FFEBEE',
-    padding: 18,
-    borderRadius: 15,
+    backgroundColor: 'transparent',
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#D32F2F',
-    shadowColor: '#D32F2F',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: '#E0E0E0',
   },
   modernDeleteAccountButtonText: {
     color: '#D32F2F',
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.bold,
+    fontFamily: FONTS.sans.medium,
     marginLeft: 8,
   },
   buttonContent: {
@@ -1738,10 +1687,18 @@ const styles = StyleSheet.create({
   gradeExplanation: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.sans.regular,
-    color: COLORS.textSecondary,
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 18,
+    color: '#757575',
+    marginTop: 4,
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  labelWithInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  infoIconButton: {
+    padding: 2,
   },
   superModernGradeTextMinimum: {
     fontFamily: FONTS.sans.bold,
@@ -1961,6 +1918,11 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sans.regular,
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+  cleanResetButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
   },
   resetButton: {
     flexDirection: 'row',
