@@ -42,6 +42,7 @@ export default function ArticleDetailScreen() {
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
   const [userScrolling, setUserScrolling] = useState(false);
+  const [contentHeight, setContentHeight] = useState(2000);
   const autoScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -158,8 +159,8 @@ export default function ArticleDetailScreen() {
     // Auto-scroll based on audio progress
     if (status.isPlaying && !userScrolling && scrollRef.current) {
       const progress = status.positionMillis / (status.durationMillis || 1);
-      const estimatedScrollHeight = 2000;
-      const scrollPosition = progress * estimatedScrollHeight;
+      // Use measured content height for accurate scrolling
+      const scrollPosition = Math.max(0, progress * contentHeight - 200); // -200 to keep content visible
 
       scrollRef.current.scrollTo({ y: scrollPosition, animated: true });
     }
@@ -288,6 +289,9 @@ export default function ArticleDetailScreen() {
           showsVerticalScrollIndicator={false}
           onScrollBeginDrag={handleUserScroll}
           scrollEventThrottle={16}
+          onContentSizeChange={(width, height) => {
+            setContentHeight(height);
+          }}
         >
           <Text style={styles.modalTitle}>{article.title}</Text>
           <Text style={styles.modalJournal}>{article.journal}</Text>

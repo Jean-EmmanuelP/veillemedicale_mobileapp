@@ -52,6 +52,7 @@ export default function ArticleModal({
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
   const [userScrolling, setUserScrolling] = useState(false);
+  const [contentHeight, setContentHeight] = useState(2000);
   const autoScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup audio on unmount or modal close
@@ -77,6 +78,18 @@ export default function ArticleModal({
       setUserScrolling(false);
     }
   }, [visible]);
+
+  // Debug: Log article data to check audio_url - AVANT le return
+  useEffect(() => {
+    if (article) {
+      console.log('📄 [ArticleModal] Article data:', {
+        id: article.article_id,
+        title: article.title?.substring(0, 50),
+        has_audio_url: !!article.audio_url,
+        audio_url: article.audio_url,
+      });
+    }
+  }, [article]);
 
   if (!article) return null;
 
@@ -144,9 +157,8 @@ export default function ArticleModal({
     // Auto-scroll based on audio progress
     if (status.isPlaying && !userScrolling && scrollRef.current) {
       const progress = status.positionMillis / (status.durationMillis || 1);
-      // Estimate scroll position based on content
-      const estimatedScrollHeight = 2000; // Adjust based on typical article length
-      const scrollPosition = progress * estimatedScrollHeight;
+      // Use measured content height for accurate scrolling
+      const scrollPosition = Math.max(0, progress * contentHeight - 200); // -200 to keep content visible
 
       scrollRef.current.scrollTo({ y: scrollPosition, animated: true });
     }
@@ -291,6 +303,9 @@ export default function ArticleModal({
             showsVerticalScrollIndicator={false}
             onScrollBeginDrag={handleUserScroll}
             scrollEventThrottle={16}
+            onContentSizeChange={(width, height) => {
+              setContentHeight(height);
+            }}
           >
             <Text style={styles.modalTitle}>{article.title}</Text>
             <Text style={styles.modalJournal}>{article.journal}</Text>
@@ -335,7 +350,7 @@ export default function ArticleModal({
             </View>
 
             {/* Audio Player */}
-            {article.audio_url && (
+            {article.audio_url ? (
               <View style={styles.audioPlayerContainer}>
                 <View style={styles.audioPlayerContent}>
                   <TouchableOpacity
@@ -383,6 +398,11 @@ export default function ArticleModal({
                     )}
                   </View>
                 </View>
+              </View>
+            ) : (
+              <View style={styles.noAudioContainer}>
+                <Ionicons name="volume-mute-outline" size={20} color={COLORS.textSecondary} />
+                <Text style={styles.noAudioText}>Pas d'audio disponible pour cet article</Text>
               </View>
             )}
 
@@ -672,5 +692,21 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sans.regular,
     color: COLORS.warning,
     marginLeft: 4,
+  } as TextStyle,
+  noAudioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.backgroundSecondary,
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 20,
+    opacity: 0.6,
+  } as ViewStyle,
+  noAudioText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+    marginLeft: 8,
   } as TextStyle,
 });

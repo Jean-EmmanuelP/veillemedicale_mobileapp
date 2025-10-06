@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { Article } from '../types';
 import ArticleItem from '../components/ArticleItem';
+import ArticleModal from '../components/ArticleModal';
 import { COLORS } from '../assets/constants/colors';
 import { FONTS, FONT_SIZES } from '../assets/constants/fonts';
 import { useAppSelector } from '../store/hooks';
@@ -30,6 +31,8 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
   const searchArticles = useCallback(async (query: string, loadMore = false) => {
     if (!query.trim()) {
@@ -107,11 +110,14 @@ export default function SearchScreen() {
     }
   };
 
-  const handleArticlePress = (article: Article) => {
-    router.push({
-      pathname: '/article-detail',
-      params: { articleId: article.article_id },
-    });
+  const openArticleModal = (article: Article) => {
+    setSelectedArticle(article);
+    setModalVisible(true);
+  };
+
+  const closeArticleModal = () => {
+    setModalVisible(false);
+    setSelectedArticle(null);
   };
 
   return (
@@ -163,7 +169,7 @@ export default function SearchScreen() {
           renderItem={({ item }) => (
             <ArticleItem
               article={item}
-              onPress={handleArticlePress}
+              onPress={openArticleModal}
               onLinkPress={() => {}}
               onLikePress={() => {}}
               onThumbsUpPress={() => {}}
@@ -183,6 +189,8 @@ export default function SearchScreen() {
           contentContainerStyle={styles.listContainer}
         />
       )}
+
+      <ArticleModal visible={modalVisible} article={selectedArticle} onClose={closeArticleModal} />
     </SafeAreaView>
   );
 }

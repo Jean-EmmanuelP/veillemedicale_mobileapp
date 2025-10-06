@@ -70,7 +70,7 @@ export default function ArticleItem({
               color={article.is_liked ? COLORS.iconPrimary : COLORS.iconSecondary}
             />
             <Text style={[styles.actionText, article.is_liked && styles.actionTextActive]}>
-              {article.like_count.toLocaleString()}
+              {article.like_count || 0}
             </Text>
           </TouchableOpacity>
 
@@ -84,7 +84,7 @@ export default function ArticleItem({
               color={article.is_thumbed_up ? COLORS.iconPrimary : COLORS.iconSecondary}
             />
             <Text style={[styles.actionText, article.is_thumbed_up && styles.actionTextActive]}>
-              {(article.thumbs_up_count ?? 0).toLocaleString()}
+              {article.thumbs_up_count || 0}
             </Text>
           </TouchableOpacity>
 
