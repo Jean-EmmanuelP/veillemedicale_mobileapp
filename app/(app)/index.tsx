@@ -47,7 +47,7 @@ type ListItem = string | Article;
 export default function ArticlesScreen() {
   const dispatch = useAppDispatch();
   const router = useRouter();
-  const { 
+  const {
     items: articles,
     loadingItems: loadingArticles,
     errorItems: errorArticles,
@@ -56,6 +56,7 @@ export default function ArticlesScreen() {
     selectedSubDiscipline,
     allDisciplines,
     subDisciplinesForFilter,
+    loadingSubDisciplinesForFilter,
     selectedGrade,
   } = useAppSelector((state) => state.articles);
   const { user, isAnonymous } = useAppSelector((state) => state.auth);
@@ -156,19 +157,22 @@ export default function ArticlesScreen() {
   // Load disciplines and articles on initial load
   useFocusEffect(
     useCallback(() => {
-      if (!hasLoadedOnce) {
-        console.log('Loading all disciplines...');
+      // Charger les disciplines seulement si elles ne sont pas déjà chargées
+      if (allDisciplines.length === 0) {
         dispatch(fetchAllDisciplinesStructure());
+      }
+
+      if (!hasLoadedOnce) {
         loadArticles(true, 0, filterType, allowedGrades).then(() => setHasLoadedOnce(true));
       }
-      
+
       // Load downloaded articles from AsyncStorage
       AsyncStorage.getItem('downloadedArticles').then(data => {
         if (data) setDownloadedArticles(JSON.parse(data));
         else setDownloadedArticles([]);
       });
       return () => {};
-    }, [])
+    }, [allDisciplines.length])
   );
 
   useEffect(() => {
@@ -176,10 +180,20 @@ export default function ArticlesScreen() {
     setHasLoadedOnce(false);
   }, [selectedDiscipline, selectedSubDiscipline, allowedGrades]);
 
+  // Charger automatiquement les sous-disciplines quand la discipline change
   useEffect(() => {
-    // Reload articles when filter type changes - need server call for recommendations
+    if (selectedDiscipline !== 'all' && allDisciplines.length > 0) {
+      const selectedDisciplineData = allDisciplines.find(d => d.name === selectedDiscipline);
+
+      if (selectedDisciplineData) {
+        dispatch(fetchSubDisciplinesForFilter(selectedDisciplineData.id));
+      }
+    }
+  }, [selectedDiscipline, allDisciplines, dispatch]);
+
+  useEffect(() => {
+    // Reload articles when filter type changes
     if (hasLoadedOnce) {
-      console.log('📰 [LES ARTICLES] Filter type changed, reloading...');
       setOffset(0);
       setHasLoadedOnce(false);
     }
@@ -187,39 +201,31 @@ export default function ArticlesScreen() {
 
   useEffect(() => {
     if (!hasLoadedOnce) {
-      console.log('📰 [LES ARTICLES] Loading articles...');
       loadArticles(true, 0, filterType, allowedGrades).then(() => setHasLoadedOnce(true));
     }
   }, [hasLoadedOnce, selectedDiscipline, selectedSubDiscipline, filterType, allowedGrades]);
 
   useEffect(() => {
-    // Rafraîchir téléchargés à chaque changement (ex: après un download)
-    AsyncStorage.getItem('downloadedArticles').then(data => {
-      if (data) setDownloadedArticles(JSON.parse(data));
-      else setDownloadedArticles([]);
-    });
+    // Rafraîchir téléchargés uniquement quand downloadedVersion change
+    if (downloadedVersion > 0) {
+      AsyncStorage.getItem('downloadedArticles').then(data => {
+        if (data) setDownloadedArticles(JSON.parse(data));
+        else setDownloadedArticles([]);
+      });
+    }
   }, [downloadedVersion]);
 
   const loadArticles = async (isRefreshing = false, customOffset?: number, customFilterType?: 'all' | 'articles' | 'recommandations', customAllowedGrades: string[] | null = allowedGrades) => {
     const currentFilterType = customFilterType ?? filterType;
-    console.log('📰 [LES ARTICLES] Loading articles with params:', {
-      discipline: selectedDiscipline,
-      subDiscipline: selectedSubDiscipline,
-      offset: customOffset ?? offset,
-      allowedGrades: customAllowedGrades,
-      filterByUserSubs: false, // TOUS les articles disponibles
-      filterType: currentFilterType,
-      onlyRecommendations: currentFilterType === 'recommandations'
-    });
-
     const offsetToUse = isRefreshing ? 0 : (customOffset ?? offset);
+
     await dispatch(fetchArticles({
       discipline: selectedDiscipline,
       subDiscipline: selectedSubDiscipline === 'all' ? null : selectedSubDiscipline,
       offset: offsetToUse,
       refresh: isRefreshing,
-      filterByUserSubs: false, // ✅ TOUS les articles disponibles
-      onlyRecommendations: currentFilterType === 'recommandations', // ✅ Crucial pour les recommandations !
+      filterByUserSubs: false,
+      onlyRecommendations: currentFilterType === 'recommandations',
       allowedGrades: customAllowedGrades ?? undefined,
     })).unwrap();
 
@@ -309,14 +315,9 @@ export default function ArticlesScreen() {
     setSelectedArticle(null);
   };
 
-  const handleDisciplineChange = (newDisciplineName: string) => {
+  const handleDisciplineChange = async (newDisciplineName: string) => {
+    // Le useEffect ci-dessus chargera automatiquement les sous-disciplines
     dispatch(setSelectedDiscipline(newDisciplineName));
-    if (newDisciplineName !== 'all') {
-      const selectedDisciplineData = allDisciplines.find(d => d.name === newDisciplineName);
-      if (selectedDisciplineData) {
-        dispatch(fetchSubDisciplinesForFilter(selectedDisciplineData.id));
-      }
-    }
   };
 
   const handleSubDisciplineChange = (newSubDisciplineName: string | null) => dispatch(setSelectedSubDiscipline(newSubDisciplineName));
@@ -324,11 +325,11 @@ export default function ArticlesScreen() {
     dispatch(setSelectedGrade(newGrade));
   };
 
-  // Calculer subDisciplineFilterOptions une seule fois
-  let subDisciplineFilterOptions: string[] = [];
-  if (selectedDiscipline !== 'all') {
-    subDisciplineFilterOptions = subDisciplinesForFilter.map(sd => sd.name);
-  }
+  // Calculer subDisciplineFilterOptions avec useMemo
+  const subDisciplineFilterOptions = useMemo(() => {
+    if (selectedDiscipline === 'all') return [];
+    return subDisciplinesForFilter.map(sd => sd.name);
+  }, [selectedDiscipline, subDisciplinesForFilter]);
 
   if (errorArticles) {
     return (
@@ -343,7 +344,7 @@ export default function ArticlesScreen() {
           onSubDisciplineChange={handleSubDisciplineChange}
           selectedGrade={selectedGrade}
           onGradeChange={handleGradeChange}
-          loadingSubDisciplines={false}
+          loadingSubDisciplines={loadingSubDisciplinesForFilter}
         />
         
         <ToggleFilter
@@ -375,6 +376,7 @@ export default function ArticlesScreen() {
             transform: [{ translateY: headerTranslateY }],
           },
         ]}
+        pointerEvents="box-none"
       >
         <TopHeader title="Les articles" />
         <FilterHeader
@@ -386,7 +388,7 @@ export default function ArticlesScreen() {
           onSubDisciplineChange={handleSubDisciplineChange}
           selectedGrade={selectedGrade}
           onGradeChange={handleGradeChange}
-          loadingSubDisciplines={false}
+          loadingSubDisciplines={loadingSubDisciplinesForFilter}
         />
 
         {/* Toggle filter */}

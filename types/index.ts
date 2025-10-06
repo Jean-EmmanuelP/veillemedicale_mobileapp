@@ -10,6 +10,7 @@ export interface Article {
   journal: string;
   discipline: string;
   sub_discipline: string | null;
+  audio_url: string | null;
   is_read: boolean;
   is_liked: boolean;
   like_count: number;

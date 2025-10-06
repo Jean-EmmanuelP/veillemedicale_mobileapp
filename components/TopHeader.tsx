@@ -20,31 +20,41 @@ export default function TopHeader({ title, showProfileButton = true }: TopHeader
     router.push('/profile');
   };
 
+  const handleSearchPress = () => {
+    router.push('/search');
+  };
+
   return (
     <BlurView intensity={0} tint="dark" style={styles.headerContainer}>
       <View style={styles.headerContent}>
         <Text style={styles.title}>{title}</Text>
-        
-        {showProfileButton && (
-          <>
-            {isAnonymous ? (
-              // Bouton "Créer un compte" pour les utilisateurs anonymes
-              <TouchableOpacity 
-                style={styles.createAccountButton} 
-                onPress={handleProfilePress}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="person-add" size={16} color="#FFFFFF" />
-                <Text style={styles.createAccountText}>Créer un compte</Text>
-              </TouchableOpacity>
-            ) : (
-              // Icône de profil pour les utilisateurs connectés
-              <TouchableOpacity style={styles.profileButton} onPress={handleProfilePress}>
-                <Ionicons name="person-circle" size={28} color={COLORS.iconPrimary} />
-              </TouchableOpacity>
-            )}
-          </>
-        )}
+
+        <View style={styles.rightButtons}>
+          <TouchableOpacity style={styles.searchButton} onPress={handleSearchPress}>
+            <Ionicons name="search" size={24} color={COLORS.iconPrimary} />
+          </TouchableOpacity>
+
+          {showProfileButton && (
+            <>
+              {isAnonymous ? (
+                // Bouton "Créer un compte" pour les utilisateurs anonymes
+                <TouchableOpacity
+                  style={styles.createAccountButton}
+                  onPress={handleProfilePress}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="person-add" size={16} color="#FFFFFF" />
+                  <Text style={styles.createAccountText}>Créer un compte</Text>
+                </TouchableOpacity>
+              ) : (
+                // Icône de profil pour les utilisateurs connectés
+                <TouchableOpacity style={styles.profileButton} onPress={handleProfilePress}>
+                  <Ionicons name="person-circle" size={28} color={COLORS.iconPrimary} />
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </View>
       </View>
     </BlurView>
   );
@@ -73,6 +83,14 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sans?.bold || FONTS.bold,
     flex: 1,
   } as TextStyle,
+  rightButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  } as ViewStyle,
+  searchButton: {
+    padding: 4,
+  } as ViewStyle,
   profileButton: {
     padding: 4,
   } as ViewStyle,

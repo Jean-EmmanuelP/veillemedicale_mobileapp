@@ -37,6 +37,8 @@ export const COLORS = {
   success: '#4CAF50',                 // Keep green for success
   successBackground: '#1B2D1B',       // Dark green background for success states
   successText: '#4CAF50',             // Green text for success
+  warning: '#FFC107',                 // Warning/info color (amber)
+  warningBackground: 'rgba(255, 193, 7, 0.1)', // Warning background
   disabled: '#555555',                // For disabled elements
 
   // Specific UI elements

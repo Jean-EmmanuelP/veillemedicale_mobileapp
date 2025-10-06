@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { WebView } from 'react-native-webview';
+import { Audio, AVPlaybackStatus } from 'expo-av';
 import { Article } from "../types";
 import { FONTS, FONT_SIZES, LINE_HEIGHTS } from "../assets/constants/fonts";
 import { SCREEN_WIDTH } from "../assets/constants/dimensions";
@@ -43,6 +44,39 @@ export default function ArticleModal({
   const [webViewUrl, setWebViewUrl] = useState<string | null>(null);
   const slideAnim = useRef(new Animated.Value(screenWidth)).current;
   const scrollRef = useRef<ScrollView>(null);
+
+  // Audio player state
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [position, setPosition] = useState(0);
+  const [userScrolling, setUserScrolling] = useState(false);
+  const autoScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup audio on unmount or modal close
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [sound]);
+
+  useEffect(() => {
+    if (!visible) {
+      // Reset audio when modal closes
+      if (sound) {
+        sound.stopAsync();
+        sound.unloadAsync();
+        setSound(null);
+      }
+      setIsPlaying(false);
+      setPosition(0);
+      setDuration(0);
+      setUserScrolling(false);
+    }
+  }, [visible]);
 
   if (!article) return null;
 
@@ -72,6 +106,109 @@ export default function ArticleModal({
       setShowWebView(false);
       setWebViewUrl(null);
     });
+  };
+
+  // Audio player functions
+  const loadAudio = async () => {
+    if (!article.audio_url) return;
+
+    try {
+      setIsLoading(true);
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+      });
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: article.audio_url },
+        { shouldPlay: false },
+        onPlaybackStatusUpdate
+      );
+
+      setSound(newSound);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error loading audio:', error);
+      Alert.alert('Erreur', "Impossible de charger l'audio");
+      setIsLoading(false);
+    }
+  };
+
+  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+
+    setPosition(status.positionMillis);
+    setDuration(status.durationMillis || 0);
+    setIsPlaying(status.isPlaying);
+
+    // Auto-scroll based on audio progress
+    if (status.isPlaying && !userScrolling && scrollRef.current) {
+      const progress = status.positionMillis / (status.durationMillis || 1);
+      // Estimate scroll position based on content
+      const estimatedScrollHeight = 2000; // Adjust based on typical article length
+      const scrollPosition = progress * estimatedScrollHeight;
+
+      scrollRef.current.scrollTo({ y: scrollPosition, animated: true });
+    }
+
+    if (status.didJustFinish) {
+      setIsPlaying(false);
+      setPosition(0);
+    }
+  };
+
+  const togglePlayPause = async () => {
+    if (!sound) {
+      await loadAudio();
+      return;
+    }
+
+    try {
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded) {
+        if (status.isPlaying) {
+          await sound.pauseAsync();
+        } else {
+          await sound.playAsync();
+          setUserScrolling(false); // Re-enable auto-scroll when playing
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling playback:', error);
+    }
+  };
+
+  const seekAudio = async (value: number) => {
+    if (!sound) return;
+
+    try {
+      await sound.setPositionAsync(value);
+    } catch (error) {
+      console.error('Error seeking audio:', error);
+    }
+  };
+
+  const handleUserScroll = () => {
+    setUserScrolling(true);
+
+    // Clear existing timeout
+    if (autoScrollTimeoutRef.current) {
+      clearTimeout(autoScrollTimeoutRef.current);
+    }
+
+    // Reset userScrolling after 3 seconds of no scrolling
+    autoScrollTimeoutRef.current = setTimeout(() => {
+      if (isPlaying) {
+        setUserScrolling(false);
+      }
+    }, 3000);
+  };
+
+  const formatTime = (millis: number) => {
+    const totalSeconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   const renderContent = (content: string) => {
@@ -148,10 +285,12 @@ export default function ArticleModal({
               />
             </TouchableOpacity>
           </View>
-          <ScrollView 
+          <ScrollView
             ref={scrollRef}
             contentContainerStyle={styles.modalScroll}
             showsVerticalScrollIndicator={false}
+            onScrollBeginDrag={handleUserScroll}
+            scrollEventThrottle={16}
           >
             <Text style={styles.modalTitle}>{article.title}</Text>
             <Text style={styles.modalJournal}>{article.journal}</Text>
@@ -194,6 +333,59 @@ export default function ArticleModal({
                 <Text style={styles.statText}>{article.thumbs_up_count}</Text>
               </View>
             </View>
+
+            {/* Audio Player */}
+            {article.audio_url && (
+              <View style={styles.audioPlayerContainer}>
+                <View style={styles.audioPlayerContent}>
+                  <TouchableOpacity
+                    style={styles.playButton}
+                    onPress={togglePlayPause}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator size="small" color={COLORS.textOnPrimaryButton} />
+                    ) : (
+                      <Ionicons
+                        name={isPlaying ? "pause" : "play"}
+                        size={28}
+                        color={COLORS.textOnPrimaryButton}
+                      />
+                    )}
+                  </TouchableOpacity>
+
+                  <View style={styles.audioInfo}>
+                    <View style={styles.audioTextRow}>
+                      <Ionicons name="headset" size={16} color={COLORS.iconPrimary} />
+                      <Text style={styles.audioLabel}>Écouter l'article</Text>
+                    </View>
+
+                    <View style={styles.progressContainer}>
+                      <View style={styles.progressBar}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            { width: `${duration > 0 ? (position / duration) * 100 : 0}%` }
+                          ]}
+                        />
+                      </View>
+                      <View style={styles.timeContainer}>
+                        <Text style={styles.timeText}>{formatTime(position)}</Text>
+                        <Text style={styles.timeText}>{formatTime(duration)}</Text>
+                      </View>
+                    </View>
+
+                    {userScrolling && isPlaying && (
+                      <View style={styles.scrollWarning}>
+                        <Ionicons name="hand-left" size={12} color={COLORS.warning} />
+                        <Text style={styles.scrollWarningText}>Défilement automatique pausé</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
+
             {renderContent(article.content)}
 
             {article.link && (
@@ -385,4 +577,100 @@ const styles = StyleSheet.create({
     color: COLORS.textLink,
     marginLeft: 5,
   },
+  // Audio Player Styles
+  audioPlayerContainer: {
+    backgroundColor: COLORS.backgroundSecondary,
+    borderRadius: 16,
+    padding: 16,
+    marginVertical: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: COLORS.black,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  } as ViewStyle,
+  audioPlayerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  } as ViewStyle,
+  playButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: COLORS.black,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  } as ViewStyle,
+  audioInfo: {
+    flex: 1,
+  } as ViewStyle,
+  audioTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  } as ViewStyle,
+  audioLabel: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.textPrimary,
+    marginLeft: 6,
+  } as TextStyle,
+  progressContainer: {
+    width: '100%',
+  } as ViewStyle,
+  progressBar: {
+    height: 4,
+    backgroundColor: COLORS.borderPrimary,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 6,
+  } as ViewStyle,
+  progressFill: {
+    height: '100%',
+    backgroundColor: COLORS.iconPrimary,
+    borderRadius: 2,
+  } as ViewStyle,
+  timeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  } as ViewStyle,
+  timeText: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.textSecondary,
+  } as TextStyle,
+  scrollWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: COLORS.warningBackground,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  } as ViewStyle,
+  scrollWarningText: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.sans.regular,
+    color: COLORS.warning,
+    marginLeft: 4,
+  } as TextStyle,
 });

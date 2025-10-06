@@ -45,13 +45,13 @@ export default function FilterHeader({
 }: FilterHeaderProps) {
   const router = useRouter();
 
-  const selectedDisciplineName = selectedDiscipline === 'all' 
-    ? 'Toutes les disciplines' 
+  const selectedDisciplineName = selectedDiscipline === 'all'
+    ? 'Toutes les disciplines'
     : selectedDiscipline;
-  
-  const selectedSubDisciplineName = 
+
+  const selectedSubDisciplineName =
     !selectedSubDiscipline || selectedSubDiscipline === 'all' || !subDisciplines || subDisciplines.length === 0
-      ? 'Sous-disciplines' 
+      ? 'Sous-disciplines'
       : selectedSubDiscipline;
 
   const selectedGradeLabel = gradeOptions.find(g => g.value === selectedGrade)?.label || 'Grades';
