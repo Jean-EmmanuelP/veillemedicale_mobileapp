@@ -44,6 +44,8 @@ export default function ArticleDetailScreen() {
   const [userScrolling, setUserScrolling] = useState(false);
   const [contentHeight, setContentHeight] = useState(2000);
   const autoScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScrollPositionRef = useRef(0);
 
   useEffect(() => {
     if (params.articleId) {
@@ -57,8 +59,49 @@ export default function ArticleDetailScreen() {
       if (sound) {
         sound.unloadAsync();
       }
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+      }
+      if (autoScrollTimeoutRef.current) {
+        clearTimeout(autoScrollTimeoutRef.current);
+      }
     };
   }, [sound]);
+
+  // Smooth auto-scroll effect
+  useEffect(() => {
+    if (isPlaying && !userScrolling && scrollRef.current && duration > 0) {
+      // Clear any existing interval
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+      }
+
+      // Update scroll position smoothly every 100ms
+      scrollIntervalRef.current = setInterval(() => {
+        if (scrollRef.current && duration > 0) {
+          const progress = position / duration;
+          const targetScrollPosition = Math.max(0, progress * contentHeight - 200);
+
+          // Only scroll if there's a significant change
+          if (Math.abs(targetScrollPosition - lastScrollPositionRef.current) > 1) {
+            scrollRef.current.scrollTo({ y: targetScrollPosition, animated: true });
+            lastScrollPositionRef.current = targetScrollPosition;
+          }
+        }
+      }, 100);
+    } else {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+      }
+    };
+  }, [isPlaying, userScrolling, position, duration, contentHeight]);
 
   const loadArticle = async (articleId: number) => {
     try {
@@ -136,12 +179,13 @@ export default function ArticleDetailScreen() {
 
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: article.audio_url },
-        { shouldPlay: false },
+        { shouldPlay: true },
         onPlaybackStatusUpdate
       );
 
       setSound(newSound);
       setIsLoadingAudio(false);
+      setUserScrolling(false);
     } catch (error) {
       console.error('Error loading audio:', error);
       Alert.alert('Erreur', "Impossible de charger l'audio");
@@ -155,15 +199,6 @@ export default function ArticleDetailScreen() {
     setPosition(status.positionMillis);
     setDuration(status.durationMillis || 0);
     setIsPlaying(status.isPlaying);
-
-    // Auto-scroll based on audio progress
-    if (status.isPlaying && !userScrolling && scrollRef.current) {
-      const progress = status.positionMillis / (status.durationMillis || 1);
-      // Use measured content height for accurate scrolling
-      const scrollPosition = Math.max(0, progress * contentHeight - 200); // -200 to keep content visible
-
-      scrollRef.current.scrollTo({ y: scrollPosition, animated: true });
-    }
 
     if (status.didJustFinish) {
       setIsPlaying(false);
@@ -182,8 +217,14 @@ export default function ArticleDetailScreen() {
       if (status.isLoaded) {
         if (status.isPlaying) {
           await sound.pauseAsync();
+          // Stop auto-scroll when paused
+          setUserScrolling(true);
+          if (autoScrollTimeoutRef.current) {
+            clearTimeout(autoScrollTimeoutRef.current);
+          }
         } else {
           await sound.playAsync();
+          // Re-enable auto-scroll when playing
           setUserScrolling(false);
         }
       }
@@ -199,11 +240,12 @@ export default function ArticleDetailScreen() {
       clearTimeout(autoScrollTimeoutRef.current);
     }
 
+    // Reset userScrolling after 2 seconds of no scrolling, only if playing
     autoScrollTimeoutRef.current = setTimeout(() => {
       if (isPlaying) {
         setUserScrolling(false);
       }
-    }, 3000);
+    }, 2000);
   };
 
   const formatTime = (millis: number) => {
@@ -216,15 +258,46 @@ export default function ArticleDetailScreen() {
   const renderContent = (content: string) => {
     const lines = content.split('\n');
     return lines.map((line, index) => {
-      if (line.startsWith('## ')) {
+      // Titre principal (# avec emoji)
+      if (line.startsWith('# ')) {
+        return (
+          <Text key={index} style={styles.mainHeading}>
+            {line.substring(2)}
+          </Text>
+        );
+      }
+      // Sous-section (##)
+      else if (line.startsWith('## ')) {
         return (
           <Text key={index} style={styles.contentHeading}>
             {line.substring(3)}
           </Text>
         );
-      } else if (line.trim() === '') {
+      }
+      // Sous-sous-section (###)
+      else if (line.startsWith('### ')) {
+        return (
+          <Text key={index} style={styles.subHeading}>
+            {line.substring(4)}
+          </Text>
+        );
+      }
+      // Liste à puces (-)
+      else if (line.trim().startsWith('- ')) {
+        const bulletContent = line.trim().substring(2);
+        return (
+          <View key={index} style={styles.bulletItem}>
+            <Text style={styles.bullet}>•</Text>
+            <Text style={styles.bulletText}>{bulletContent}</Text>
+          </View>
+        );
+      }
+      // Ligne vide
+      else if (line.trim() === '') {
         return <View key={index} style={{ height: LINE_HEIGHTS.base / 2 }} />;
-      } else {
+      }
+      // Texte normal
+      else {
         return (
           <Text key={index} style={styles.modalContentText}>
             {line}
@@ -479,12 +552,47 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sans.regular,
     color: COLORS.textSecondary,
   } as TextStyle,
+  mainHeading: {
+    fontSize: FONT_SIZES.xxl,
+    fontFamily: FONTS.serifDisplay.bold,
+    color: COLORS.textPrimary,
+    marginTop: 24,
+    marginBottom: 16,
+    lineHeight: LINE_HEIGHTS.xxl,
+  } as TextStyle,
   contentHeading: {
     fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.sans.bold,
     color: COLORS.textPrimary,
     marginTop: 20,
     marginBottom: 10,
+  } as TextStyle,
+  subHeading: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.textPrimary,
+    marginTop: 16,
+    marginBottom: 8,
+  } as TextStyle,
+  bulletItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    paddingLeft: 8,
+  } as ViewStyle,
+  bullet: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    color: COLORS.iconPrimary,
+    marginRight: 8,
+    marginTop: 2,
+  } as TextStyle,
+  bulletText: {
+    flex: 1,
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.regular,
+    lineHeight: LINE_HEIGHTS.base * 1.4,
+    color: COLORS.textPrimary,
   } as TextStyle,
   modalContentText: {
     fontSize: FONT_SIZES.base,
