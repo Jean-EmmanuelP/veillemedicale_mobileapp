@@ -84,10 +84,19 @@ export default function PreferencesScreen() {
     setError("");
 
     try {
-      // 1. Create auth user
+      // 1. Create auth user with metadata
+      const firstName = email.split("@")[0];
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name: firstName,
+            notification_frequency: notificationFrequency,
+            minimum_grade_notification: minimumGrade,
+          }
+        }
       });
 
       if (signUpError) {
@@ -112,7 +121,6 @@ export default function PreferencesScreen() {
       }
 
       // 2. Wait for auth user creation to complete, then create profile with preferences
-      const firstName = email.split("@")[0];
       const profile = {
         id: data.user.id,
         first_name: firstName,

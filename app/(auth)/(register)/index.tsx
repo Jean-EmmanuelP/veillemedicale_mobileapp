@@ -264,9 +264,16 @@ export default function RegisterScreen() {
     setLoading(true);
     setShowLoader(true);
     try {
+      const firstName = email.split("@")[0];
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name: firstName,
+          }
+        }
       });
       console.log(JSON.stringify(data, null, 2));
       if (signUpError) {
@@ -292,9 +299,8 @@ export default function RegisterScreen() {
         setLoading(false);
         return;
       }
-      
+
       // 2. Création du profil utilisateur
-      const firstName = email.split("@")[0];
       const profile = {
         id: data.user.id,
         first_name: firstName,

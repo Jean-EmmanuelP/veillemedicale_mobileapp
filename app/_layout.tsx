@@ -55,7 +55,7 @@ function NavigationLayout() {
           dispatch(setUser({
             id: session.user.id,
             email: session.user.email,
-            name: session.user.user_metadata.name || '',
+            name: session.user.user_metadata?.name || '',
             is_anonymous: session.user.is_anonymous || false,
           }));
           dispatch(setSession(session.access_token));
@@ -98,7 +98,7 @@ function NavigationLayout() {
         dispatch(setUser({
           id: session.user.id,
           email: session.user.email,
-          name: session.user.user_metadata.name || '',
+          name: session.user.user_metadata?.name || '',
           is_anonymous: session.user.is_anonymous || false,
         }));
         dispatch(setSession(session.access_token));

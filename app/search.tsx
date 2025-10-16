@@ -33,16 +33,19 @@ export default function SearchScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const searchArticles = useCallback(async (query: string, loadMore = false) => {
     if (!query.trim()) {
       setResults([]);
       setHasMore(true);
       setOffset(0);
+      setError(null);
       return;
     }
 
     setLoading(true);
+    setError(null);
     const currentOffset = loadMore ? offset : 0;
 
     try {
@@ -88,12 +91,22 @@ export default function SearchScreen() {
 
       setHasMore((data || []).length === 20);
       setOffset(loadMore ? currentOffset + 20 : 20);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Search error:', error);
+      const errorMessage = error?.message?.includes('network') || error?.message?.includes('fetch')
+        ? 'Erreur de connexion réseau'
+        : 'Une erreur est survenue lors de la recherche';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   }, [offset, user?.id]);
+
+  const handleRetry = () => {
+    if (searchQuery.trim()) {
+      searchArticles(searchQuery, false);
+    }
+  };
 
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -150,6 +163,16 @@ export default function SearchScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.iconPrimary} />
           <Text style={styles.loadingText}>Recherche en cours...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Ionicons name="cloud-offline-outline" size={64} color={COLORS.error} />
+          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorSubtext}>Vérifiez votre connexion internet</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+            <Ionicons name="refresh" size={20} color={COLORS.textOnPrimaryButton} />
+            <Text style={styles.retryButtonText}>Réessayer</Text>
+          </TouchableOpacity>
         </View>
       ) : results.length === 0 && searchQuery.trim().length >= 2 ? (
         <View style={styles.emptyContainer}>
@@ -275,4 +298,39 @@ const styles = StyleSheet.create({
   footerLoader: {
     marginVertical: 20,
   } as ViewStyle,
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  } as ViewStyle,
+  errorText: {
+    marginTop: 16,
+    color: COLORS.error,
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.sans.bold,
+    textAlign: 'center',
+  } as TextStyle,
+  errorSubtext: {
+    marginTop: 8,
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.sans.regular,
+    textAlign: 'center',
+  } as TextStyle,
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 20,
+  } as ViewStyle,
+  retryButtonText: {
+    color: COLORS.textOnPrimaryButton,
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.sans.bold,
+    marginLeft: 8,
+  } as TextStyle,
 });
