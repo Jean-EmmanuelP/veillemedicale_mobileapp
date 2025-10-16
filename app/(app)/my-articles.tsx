@@ -58,8 +58,6 @@ export default function MyArticlesScreen() {
     selectedSubDiscipline,
     disciplines,
     allDisciplines,
-    subDisciplinesForFilter,
-    loadingSubDisciplinesForFilter,
     selectedGrade,
   } = useAppSelector((state) => state.articles);
   const { user, isAnonymous } = useAppSelector((state) => state.auth);
@@ -177,16 +175,8 @@ export default function MyArticlesScreen() {
     setFilterType('all'); // Reset filter type when discipline/subdiscipline changes
   }, [selectedDiscipline, selectedSubDiscipline, allowedGrades]);
 
-  // Charger automatiquement les sous-disciplines quand la discipline change
-  useEffect(() => {
-    if (selectedDiscipline !== 'all' && allDisciplines.length > 0) {
-      const selectedDisciplineData = allDisciplines.find(d => d.name === selectedDiscipline);
-
-      if (selectedDisciplineData) {
-        dispatch(fetchSubDisciplinesForFilter(selectedDisciplineData.id));
-      }
-    }
-  }, [selectedDiscipline, allDisciplines, dispatch]);
+  // Note: Pas besoin de charger fetchSubDisciplinesForFilter ici
+  // car on utilise directement les sous-disciplines des subscriptions utilisateur
 
   useEffect(() => {
     // Reload articles when filter type changes
@@ -287,11 +277,20 @@ export default function MyArticlesScreen() {
   // Calculer les options de filtres
   const disciplineFilterOptions = ['all', ...disciplines.map(d => d.name)];
 
-  // Utiliser subDisciplinesForFilter du store pour la cohérence avec la page Articles
+  // Utiliser les sous-disciplines auxquelles l'utilisateur est ABONNÉ uniquement
   const subDisciplineFilterOptions = useMemo(() => {
     if (selectedDiscipline === 'all') return [];
-    return subDisciplinesForFilter.map(sd => sd.name);
-  }, [selectedDiscipline, subDisciplinesForFilter]);
+
+    // Trouver la discipline sélectionnée dans les subscriptions de l'utilisateur
+    const selectedDisciplineData = disciplines.find(d => d.name === selectedDiscipline);
+
+    if (!selectedDisciplineData || !selectedDisciplineData.subscribed_sub_disciplines) {
+      return [];
+    }
+
+    // Retourner uniquement les sous-disciplines auxquelles l'utilisateur est abonné
+    return selectedDisciplineData.subscribed_sub_disciplines.map(sd => sd.name);
+  }, [selectedDiscipline, disciplines]);
 
   // Loading stylé avec headers visibles
   const renderLoadingContent = () => (
@@ -314,7 +313,7 @@ export default function MyArticlesScreen() {
           onSubDisciplineChange={handleSubDisciplineChange}
           selectedGrade={selectedGrade}
           onGradeChange={handleGradeChange}
-          loadingSubDisciplines={loadingSubDisciplinesForFilter}
+          loadingSubDisciplines={false}
         />
         
         <ToggleFilter
@@ -350,7 +349,7 @@ export default function MyArticlesScreen() {
           onSubDisciplineChange={handleSubDisciplineChange}
           selectedGrade={selectedGrade}
           onGradeChange={handleGradeChange}
-          loadingSubDisciplines={loadingSubDisciplinesForFilter}
+          loadingSubDisciplines={false}
         />
 
         {/* Toggle filter */}
