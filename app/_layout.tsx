@@ -11,6 +11,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import NotificationService from '../services/NotificationService';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import 'react-native-reanimated';
 import 'react-native-url-polyfill/auto';
 
@@ -201,7 +202,9 @@ export default function RootLayout() {
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <NavigationLayout />
+          <BottomSheetModalProvider>
+            <NavigationLayout />
+          </BottomSheetModalProvider>
         </GestureHandlerRootView>
       </PersistGate>
     </Provider>
