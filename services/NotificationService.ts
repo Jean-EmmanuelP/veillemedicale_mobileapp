@@ -157,10 +157,9 @@ class NotificationService {
         },
       },
       trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour: hours,
         minute: minutes,
-        repeats: true,
-        seconds: 0,
       },
     });
 
@@ -251,27 +250,54 @@ class NotificationService {
     }
   }
 
+  // Guard anti-boucle : on ne réinitialise pas pour le même userId
+  // (onAuthStateChange se déclenche à chaque refresh de token → sinon boucle)
+  private _initializedFor: string | null = null;
+  private _initInProgress: Promise<void> | null = null;
+  private _consecutiveFailures = 0;
+
   // Initialiser le service de notifications
   async initialize(userId: string): Promise<void> {
-    try {
-      // Enregistrer pour les notifications push
-      const token = await this.registerForPushNotificationsAsync();
-      
-      if (token) {
-        // Sauvegarder le token dans Supabase
-        await this.savePushToken(userId, token);
-        
-        // Récupérer les préférences de l'utilisateur
-        const preferences = await this.getUserNotificationPreferences(userId);
-        
-        if (preferences) {
-          // Programmer les notifications selon les préférences
-          await this.scheduleNotifications(preferences);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to initialize notification service:', error);
+    // Idempotent : même userId → skip
+    if (this._initializedFor === userId) return;
+    // Déduplication : si déjà en cours pour un autre userId, on attend
+    if (this._initInProgress) {
+      await this._initInProgress;
+      return;
     }
+    // Circuit breaker : après 3 échecs consécutifs, on arrête d'essayer
+    // (évite le toast en boucle qui saturait l'UI — 362 tentatives observées)
+    if (this._consecutiveFailures >= 3) return;
+
+    this._initInProgress = (async () => {
+      try {
+        const token = await this.registerForPushNotificationsAsync();
+        if (token) {
+          await this.savePushToken(userId, token);
+          const preferences = await this.getUserNotificationPreferences(userId);
+          if (preferences) {
+            await this.scheduleNotifications(preferences);
+          }
+        }
+        this._initializedFor = userId;
+        this._consecutiveFailures = 0;
+      } catch (error) {
+        this._consecutiveFailures += 1;
+        // On log une seule fois par cycle d'échecs pour ne pas saturer la console
+        if (this._consecutiveFailures === 1) {
+          console.warn('Failed to initialize notification service:', error);
+        }
+      } finally {
+        this._initInProgress = null;
+      }
+    })();
+    await this._initInProgress;
+  }
+
+  // Reset explicite (à appeler sur logout pour permettre une réinit propre au prochain login)
+  resetInitState(): void {
+    this._initializedFor = null;
+    this._consecutiveFailures = 0;
   }
 
   // Récupérer les préférences de notification de l'utilisateur
