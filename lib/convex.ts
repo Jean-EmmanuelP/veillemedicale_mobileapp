@@ -1,5 +1,5 @@
-// Client Convex (lecture live) — pointe sur le déploiement prod partagé avec le web.
-// L'auth reste sur Supabase ; Convex est utilisé ici pour les lectures temps réel.
+// Client Convex — pointe sur le déploiement prod partagé avec le web.
+// Auth mobile = Convex Auth (cf. lib/auth/convexAuthClient.ts) ; data reads live via Convex.
 import { ConvexReactClient } from 'convex/react';
 import { anyApi } from 'convex/server';
 
