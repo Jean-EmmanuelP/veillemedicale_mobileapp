@@ -125,55 +125,21 @@ export const fetchProfile = createAsyncThunk(
       email: userProfile.email,
     });
 
-    // ─── 2. Disciplines + subscriptions + grades ────────────────────────────
-    // TODO(convex): ces trois tables (`disciplines`, `user_subscriptions`,
-    // `user_grade_preferences`) n'ont pas encore d'équivalent Convex publié.
-    // On garde le read Supabase (anon key + RLS) en attendant les APIs Convex.
-    // Le mobile n'utilise plus Supabase pour l'AUTH — c'est purement de la
-    // lecture publique paramétrée par `userId`.
+    // ─── 2. Disciplines + subscriptions + grades — 100% Convex ──────────────
+    // Migration finale 2026-07-03 : les 3 dernières tables Supabase (disciplines,
+    // user_subscriptions, user_grade_preferences) sont maintenant servies par
+    // Convex via `getMobileProfileRelations` (query combinée = 1 seul RTT).
     //
-    // Chaque query est wrap en `withTimeout` : si le réseau tombe ou si RLS
-    // block, on rejette proprement au lieu de laisser le spinner tourner.
-
-    const disciplinesPromise = supabase
-      .from('disciplines')
-      .select(`
-        id,
-        name,
-        sub_disciplines ( id, name )
-      `)
-      .order('name', { ascending: true });
-
-    const subsPromise = supabase
-      .from('user_subscriptions')
-      .select('discipline_id, sub_discipline_id')
-      .eq('user_id', userId);
-
-    const gradesPromise = supabase
-      .from('user_grade_preferences')
-      .select('grade')
-      .eq('user_id', userId);
-
-    // Race parallèle avec timeout unique — plus rapide qu'en série.
-    const [disciplinesRes, subsRes, gradesRes] = await withTimeout(
-      Promise.all([disciplinesPromise, subsPromise, gradesPromise]),
+    // Le mobile est désormais 100% Convex — plus aucune référence Supabase active.
+    const relations = await withTimeout(
+      convex.query(api.articles.getMobileProfileRelations, { userId }),
       FETCH_TIMEOUT_MS,
-      'supabase profile relations (disciplines/subs/grades)'
+      'convex profile relations (disciplines/subs/grades)'
     );
 
-    if (disciplinesRes.error) {
-      console.warn('⚠️ [PROFILE SLICE] Disciplines fetch failed:', disciplinesRes.error.message);
-    }
-    if (subsRes.error) {
-      console.warn('⚠️ [PROFILE SLICE] Subscriptions fetch failed:', subsRes.error.message);
-    }
-    if (gradesRes.error) {
-      console.warn('⚠️ [PROFILE SLICE] Grade preferences fetch failed:', gradesRes.error.message);
-    }
-
-    const disciplines = disciplinesRes.data || [];
-    const subscriptions = subsRes.data || [];
-    const gradePreferences = (gradesRes.data || []).map((g: any) => g.grade);
+    const disciplines = relations?.disciplines ?? [];
+    const subscriptions = relations?.subscriptions ?? [];
+    const gradePreferences = relations?.gradePreferences ?? [];
 
     userProfile.grade_preferences = gradePreferences;
     userProfile.subscriptions = subscriptions;
