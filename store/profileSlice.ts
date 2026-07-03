@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { supabase } from '../lib/supabase';
+import { convex, api } from '../lib/convex';
 
 interface UserProfile {
   id: string;
@@ -62,33 +63,79 @@ const initialState: ProfileState = {
   saveSuccess: false
 };
 
+/**
+ * withTimeout — enveloppe une Promise dans un Promise.race avec un timeout.
+ * Si le timeout expire, la promise rejette avec un message explicite. Ça
+ * garantit qu'aucun fetch bloqué ne peut geler l'UI en `loading: true` à vie.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`[TIMEOUT] ${label} n'a pas répondu en ${ms / 1000}s`)),
+        ms
+      )
+    ),
+  ]);
+}
+
+const FETCH_TIMEOUT_MS = 10_000;
+
 export const fetchProfile = createAsyncThunk(
   'profile/fetchProfile',
   async (userId: string) => {
     console.log('📋 [PROFILE SLICE] fetchProfile started for userId:', userId);
-    
-    // Fetch user profile
-    const { data: userProfile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
 
-    if (profileError) {
-      console.error('❌ [PROFILE SLICE] Error fetching user profile:', profileError);
-      throw profileError;
+    // ─── 1. User profile via Convex `userMirror` (source de vérité mobile) ───
+    // Migration Supabase → Convex : on ne tape plus la table `user_profiles`
+    // Supabase directement. `userMirror` est synchro par webhook + cron
+    // `sync-user-mirror`. Cf. `convex/userMirror.ts`.
+    const mirror = await withTimeout(
+      convex.query(api.userMirror.getBySupabaseId, { supabaseId: userId }),
+      FETCH_TIMEOUT_MS,
+      'convex.userMirror.getBySupabaseId'
+    );
+
+    if (!mirror) {
+      throw new Error(
+        `Profil introuvable dans Convex userMirror pour userId=${userId}. Le sync backend a peut-être du retard — réessayez dans quelques secondes.`
+      );
     }
 
-    console.log('✅ [PROFILE SLICE] User profile fetched:', {
+    // Shape adapté à l'interface UserProfile (snake_case côté mobile pour compat
+    // avec les composants existants qui lisent `first_name`, `date_of_birth`, ...).
+    const userProfile: UserProfile = {
+      id: mirror.supabaseId,
+      first_name: mirror.firstName || '',
+      last_name: mirror.lastName || '',
+      email: mirror.email || '',
+      status: mirror.status || '',
+      specialty: mirror.specialty || '',
+      date_of_birth: mirror.dateOfBirth || '',
+      notification_frequency: mirror.notificationFrequency || 'tous_les_jours',
+      minimum_grade_notification: mirror.minimumGradeNotification || '',
+      grade_preferences: [], // rempli plus bas
+      subscriptions: [],     // rempli plus bas
+    };
+
+    console.log('✅ [PROFILE SLICE] Convex userMirror fetched:', {
       userId: userProfile.id,
       firstName: userProfile.first_name,
-      lastName: userProfile.last_name,
       email: userProfile.email,
-      status: userProfile.status
     });
 
-    // Fetch disciplines
-    const { data: disciplines, error: disciplinesError } = await supabase
+    // ─── 2. Disciplines + subscriptions + grades ────────────────────────────
+    // TODO(convex): ces trois tables (`disciplines`, `user_subscriptions`,
+    // `user_grade_preferences`) n'ont pas encore d'équivalent Convex publié.
+    // On garde le read Supabase (anon key + RLS) en attendant les APIs Convex.
+    // Le mobile n'utilise plus Supabase pour l'AUTH — c'est purement de la
+    // lecture publique paramétrée par `userId`.
+    //
+    // Chaque query est wrap en `withTimeout` : si le réseau tombe ou si RLS
+    // block, on rejette proprement au lieu de laisser le spinner tourner.
+
+    const disciplinesPromise = supabase
       .from('disciplines')
       .select(`
         id,
@@ -97,78 +144,83 @@ export const fetchProfile = createAsyncThunk(
       `)
       .order('name', { ascending: true });
 
-    if (disciplinesError) {
-      console.error('❌ [PROFILE SLICE] Error fetching disciplines:', disciplinesError);
-      throw disciplinesError;
-    }
-
-    console.log('✅ [PROFILE SLICE] Disciplines fetched:', {
-      count: disciplines?.length || 0
-    });
-
-    // Fetch user subscriptions
-    const { data: subscriptions, error: subsError } = await supabase
+    const subsPromise = supabase
       .from('user_subscriptions')
       .select('discipline_id, sub_discipline_id')
       .eq('user_id', userId);
 
-    if (subsError) {
-      console.error('❌ [PROFILE SLICE] Error fetching subscriptions:', subsError);
-      throw subsError;
-    }
-
-    console.log('✅ [PROFILE SLICE] User subscriptions fetched:', {
-      count: subscriptions?.length || 0,
-      subscriptions: subscriptions
-    });
-
-    // Fetch grade preferences
-    const { data: gradePreferences, error: gradesError } = await supabase
+    const gradesPromise = supabase
       .from('user_grade_preferences')
       .select('grade')
       .eq('user_id', userId);
 
-    if (gradesError) {
-      console.error('❌ [PROFILE SLICE] Error fetching grade preferences:', gradesError);
-      throw gradesError;
+    // Race parallèle avec timeout unique — plus rapide qu'en série.
+    const [disciplinesRes, subsRes, gradesRes] = await withTimeout(
+      Promise.all([disciplinesPromise, subsPromise, gradesPromise]),
+      FETCH_TIMEOUT_MS,
+      'supabase profile relations (disciplines/subs/grades)'
+    );
+
+    if (disciplinesRes.error) {
+      console.warn('⚠️ [PROFILE SLICE] Disciplines fetch failed:', disciplinesRes.error.message);
+    }
+    if (subsRes.error) {
+      console.warn('⚠️ [PROFILE SLICE] Subscriptions fetch failed:', subsRes.error.message);
+    }
+    if (gradesRes.error) {
+      console.warn('⚠️ [PROFILE SLICE] Grade preferences fetch failed:', gradesRes.error.message);
     }
 
-    console.log('✅ [PROFILE SLICE] Grade preferences fetched:', {
-      grades: gradePreferences?.map(g => g.grade) || []
+    const disciplines = disciplinesRes.data || [];
+    const subscriptions = subsRes.data || [];
+    const gradePreferences = (gradesRes.data || []).map((g: any) => g.grade);
+
+    userProfile.grade_preferences = gradePreferences;
+    userProfile.subscriptions = subscriptions;
+
+    console.log('🎉 [PROFILE SLICE] fetchProfile completed:', {
+      disciplinesCount: disciplines.length,
+      subscriptionsCount: subscriptions.length,
+      gradesCount: gradePreferences.length,
     });
 
-    const result = {
+    return {
       profile: userProfile,
       disciplines,
       subscriptions,
-      gradePreferences: gradePreferences.map(g => g.grade)
+      gradePreferences,
     };
-
-    console.log('🎉 [PROFILE SLICE] fetchProfile completed successfully for userId:', userId);
-    
-    return result;
   }
 );
 
 export const updateProfile = createAsyncThunk(
   'profile/updateProfile',
-  async ({ 
-    userId, 
-    profile, 
-    subscriptions, 
-    gradePreferences 
-  }: { 
+  async ({
+    userId,
+    profile,
+    subscriptions,
+    gradePreferences
+  }: {
     userId: string;
     profile: Partial<UserProfile>;
     subscriptions: { discipline_id: number; sub_discipline_id: number | null; }[];
     gradePreferences: string[];
   }) => {
     // 1. Update profile
+    // TODO(convex): pas encore de mutation Convex publique équivalente à
+    // `updateProfile` — on garde Supabase update en attendant. Les writes ici
+    // seront répliqués vers Convex par le webhook `upsertFromSupabase`.
     console.log('📝 [PROFILE SLICE] Updating profile:', profile);
-    const { error: profileError } = await supabase
-      .from('user_profiles')
-      .update(profile)
-      .eq('id', userId);
+    // supabase-js query builders sont thenables mais pas Promise natives ; on
+    // les wrappe explicitement pour que withTimeout puisse les racer.
+    const profileUpdateResult = (await withTimeout(
+      Promise.resolve(
+        supabase.from('user_profiles').update(profile).eq('id', userId)
+      ),
+      FETCH_TIMEOUT_MS,
+      'supabase update user_profiles'
+    )) as { error: any };
+    const profileError = profileUpdateResult.error;
 
     if (profileError) {
       console.error('❌ [PROFILE SLICE] Error updating profile:', profileError);
@@ -262,12 +314,12 @@ const profileSlice = createSlice({
       })
       .addCase(fetchProfile.rejected, (state, action) => {
         state.loading = false;
-        
+
         // Ne pas afficher l'erreur "no rows returned" pour les utilisateurs anonymes
         const errorMessage = action.error.message || '';
-        const isNoRowsError = errorMessage.includes('JSON object requested') && 
+        const isNoRowsError = errorMessage.includes('JSON object requested') &&
                              (errorMessage.includes('multiple') || errorMessage.includes('no rows'));
-        
+
         if (isNoRowsError) {
           console.log('🔇 [PROFILE SLICE] fetchProfile.rejected: Suppressing "no rows" error (likely anonymous user)');
           state.error = null; // Ne pas afficher l'erreur
@@ -295,4 +347,4 @@ const profileSlice = createSlice({
 });
 
 export const { clearSaveSuccess, clearError, updateCurrentSubscriptions } = profileSlice.actions;
-export default profileSlice.reducer; 
+export default profileSlice.reducer;

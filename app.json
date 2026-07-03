@@ -3,14 +3,14 @@
     "name": "Veille Medicale",
     "slug": "Sano",
     "scheme": "veillemedicale",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#05403E"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -19,7 +19,9 @@
       "expo-router",
       "expo-localization",
       "expo-video",
-      "expo-font"
+      "expo-font",
+      "expo-web-browser",
+      "expo-secure-store"
     ],
     "ios": {
       "supportsTablet": true,
@@ -32,7 +34,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#05403E"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.veillemedicale.myapp"

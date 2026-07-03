@@ -692,7 +692,7 @@ export default function ProfileScreen() {
       }}
     >
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, width: '85%' }}>
+        <View style={{ backgroundColor: 'white', borderRadius: 0, padding: 24, width: '85%' }}>
           {!adminAuthenticated ? (
             <>
               <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Accès administrateur</Text>
@@ -701,12 +701,12 @@ export default function ProfileScreen() {
                 secureTextEntry
                 value={adminPassword}
                 onChangeText={setAdminPassword}
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 16 }}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 0, padding: 10, marginBottom: 16 }}
                 autoFocus
                 onSubmitEditing={handleAdminPasswordSubmit}
               />
               <TouchableOpacity
-                style={{ backgroundColor: '#1976D2', padding: 12, borderRadius: 8, alignItems: 'center' }}
+                style={{ backgroundColor: '#05403E', padding: 12, borderRadius: 0, alignItems: 'center' }}
                 onPress={handleAdminPasswordSubmit}
               >
                 <Text style={{ color: 'white', fontWeight: 'bold' }}>Valider</Text>
@@ -719,16 +719,16 @@ export default function ProfileScreen() {
                 placeholder="Titre de la notification"
                 value={notifTitle}
                 onChangeText={setNotifTitle}
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 8 }}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 0, padding: 10, marginBottom: 8 }}
               />
               <TextInput
                 placeholder="Message de la notification"
                 value={notifBody}
                 onChangeText={setNotifBody}
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 16 }}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 0, padding: 10, marginBottom: 16 }}
               />
               <TouchableOpacity
-                style={{ backgroundColor: '#388E3C', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 16, opacity: sending ? 0.6 : 1 }}
+                style={{ backgroundColor: '#388E3C', padding: 12, borderRadius: 0, alignItems: 'center', marginBottom: 16, opacity: sending ? 0.6 : 1 }}
                 onPress={handleSendToAll}
                 disabled={sending}
               >
@@ -739,12 +739,12 @@ export default function ProfileScreen() {
                 placeholder="ID utilisateur cible"
                 value={targetUserId}
                 onChangeText={setTargetUserId}
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 8 }}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 0, padding: 10, marginBottom: 8 }}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
               <TouchableOpacity
-                style={{ backgroundColor: '#1976D2', padding: 12, borderRadius: 8, alignItems: 'center', opacity: sending ? 0.6 : 1 }}
+                style={{ backgroundColor: '#05403E', padding: 12, borderRadius: 0, alignItems: 'center', opacity: sending ? 0.6 : 1 }}
                 onPress={handleSendToUser}
                 disabled={sending}
               >
@@ -771,6 +771,103 @@ export default function ProfileScreen() {
     router.back();
   };
 
+  // Safety net local : si le loading dépasse 12s sans profile ni error posé
+  // par le thunk, on force l'affichage du retry (défense en profondeur au cas
+  // où un fetch se ferait avaler par la stack).
+  const [safetyTimeoutFired, setSafetyTimeoutFired] = useState(false);
+  useEffect(() => {
+    if (loading && !profile) {
+      setSafetyTimeoutFired(false);
+      const t = setTimeout(() => setSafetyTimeoutFired(true), 12_000);
+      return () => clearTimeout(t);
+    }
+    setSafetyTimeoutFired(false);
+  }, [loading, profile]);
+
+  const handleRetryFetchProfile = () => {
+    if (user?.id && !isAnonymous) {
+      console.log('🔁 [PROFILE] Retry fetchProfile for user:', user.id);
+      setSafetyTimeoutFired(false);
+      dispatch(fetchProfile(user.id));
+    } else {
+      // Pas de user en state — on renvoie l'utilisateur vers /(auth) pour se
+      // relogger. Un profil ne peut pas se charger sans user.id.
+      router.replace('/(auth)');
+    }
+  };
+
+  // Écran retry : soit une erreur explicite est posée, soit le safety timeout
+  // a fired (fetch bloqué silencieusement). Pas d'ActivityIndicator infini.
+  const showRetryScreen =
+    !profile && !isAnonymous && ((!loading && !!error) || safetyTimeoutFired);
+
+  if (showRetryScreen) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="alert-circle-outline" size={48} color={COLORS.iconPrimary} style={{ marginBottom: 16 }} />
+        <Text
+          style={{
+            color: COLORS.textPrimary,
+            fontFamily: FONTS.sans.medium,
+            fontSize: FONT_SIZES.base,
+            textAlign: 'center',
+            marginBottom: 8,
+            paddingHorizontal: 24,
+          }}
+        >
+          Impossible de charger vos paramètres
+        </Text>
+        <Text
+          style={{
+            color: COLORS.textSecondary || COLORS.textPrimary,
+            fontFamily: FONTS.sans.regular,
+            fontSize: FONT_SIZES.sm,
+            textAlign: 'center',
+            marginBottom: 24,
+            paddingHorizontal: 32,
+            opacity: 0.7,
+          }}
+        >
+          {error || 'La requête a mis trop de temps à répondre.'}
+        </Text>
+        <TouchableOpacity
+          onPress={handleRetryFetchProfile}
+          style={{
+            backgroundColor: COLORS.iconPrimary,
+            paddingVertical: 12,
+            paddingHorizontal: 32,
+            borderRadius: 0,
+          }}
+        >
+          <Text
+            style={{
+              color: COLORS.white,
+              fontFamily: FONTS.sans.semibold,
+              fontSize: FONT_SIZES.base,
+            }}
+          >
+            Réessayer
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleBackPress}
+          style={{ marginTop: 16, paddingVertical: 8, paddingHorizontal: 16 }}
+        >
+          <Text
+            style={{
+              color: COLORS.textPrimary,
+              fontFamily: FONTS.sans.regular,
+              fontSize: FONT_SIZES.sm,
+              opacity: 0.7,
+            }}
+          >
+            Retour
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   if (loading && !profile) {
     return (
       <View style={styles.loadingContainer}>
@@ -782,7 +879,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       {/* Custom header with back button */}
-      <BlurView intensity={0} tint="dark" style={styles.headerContainer}>
+      <BlurView intensity={0} tint="light" style={styles.headerContainer}>
         <View style={styles.headerContent}>
           <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={COLORS.iconPrimary} />
@@ -933,7 +1030,7 @@ export default function ProfileScreen() {
                           </Text>
                           {isMinimumGrade && (
                             <View style={styles.selectedIndicator}>
-                              <Ionicons name="checkmark-circle" size={16} color={COLORS.buttonBackgroundPrimary} />
+                              <Ionicons name="checkmark-circle" size={16} color={COLORS.white} />
                             </View>
                           )}
                         </View>
@@ -1157,7 +1254,7 @@ export default function ProfileScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#1C1C1C" />
+                <ActivityIndicator color={COLORS.white} />
               ) : (
                 <View style={styles.buttonContent}>
                   <Ionicons name="checkmark-circle" size={20} color={COLORS.white} />
@@ -1220,7 +1317,9 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    backgroundColor: 'black',
+    backgroundColor: COLORS.backgroundPrimary,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderPrimary,
     overflow: 'hidden',
   },
   headerContent: {
@@ -1283,7 +1382,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: COLORS.borderInput,
-    borderRadius: 5,
+    borderRadius: 0,
     padding: 10,
     fontSize: FONT_SIZES.base,
     fontFamily: FONTS.sans.regular,
@@ -1296,7 +1395,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.borderInput,
-    borderRadius: 5,
+    borderRadius: 0,
     padding: 10,
     backgroundColor: COLORS.backgroundPrimary,
   },
@@ -1353,15 +1452,15 @@ const styles = StyleSheet.create({
   cleanGradeButton: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#424242',
-    borderRadius: 12,
-    backgroundColor: '#1C1C1C',
+    borderColor: COLORS.borderPrimary,
+    borderRadius: 0,
+    backgroundColor: COLORS.backgroundSecondary,
     minHeight: 70,
     position: 'relative',
     overflow: 'hidden',
   },
   cleanGradeButtonSelected: {
-    backgroundColor: '#1E3A5F',
+    backgroundColor: COLORS.buttonBackgroundPrimary,
     borderColor: COLORS.buttonBackgroundPrimary,
     borderWidth: 2,
   },
@@ -1369,7 +1468,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 2,
     borderColor: COLORS.borderInput,
-    borderRadius: 12,
+    borderRadius: 0,
     marginHorizontal: 5,
     backgroundColor: COLORS.backgroundPrimary,
     minHeight: 80,
@@ -1407,7 +1506,7 @@ const styles = StyleSheet.create({
     top: 8,
     right: 8,
     backgroundColor: COLORS.success,
-    borderRadius: 12,
+    borderRadius: 0,
     width: 24,
     height: 24,
     justifyContent: 'center',
@@ -1429,13 +1528,13 @@ const styles = StyleSheet.create({
   },
   cleanGradeText: {
     fontFamily: FONTS.sans.medium,
-    color: '#9E9E9E',
+    color: COLORS.textSecondary,
     fontSize: FONT_SIZES.base,
     flex: 1,
   },
   cleanGradeTextSelected: {
     fontFamily: FONTS.sans.semibold,
-    color: COLORS.textPrimary,
+    color: COLORS.white,
   },
   selectedIndicator: {
     marginLeft: 'auto',
@@ -1470,7 +1569,7 @@ const styles = StyleSheet.create({
   modernInput: {
     borderWidth: 1,
     borderColor: COLORS.borderInput,
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 15,
     fontSize: FONT_SIZES.base,
     fontFamily: FONTS.sans.regular,
@@ -1485,7 +1584,7 @@ const styles = StyleSheet.create({
   modernSaveButton: {
     backgroundColor: COLORS.buttonBackgroundPrimary,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 0,
     alignItems: 'center',
     marginBottom: 12,
     shadowColor: '#000',
@@ -1504,7 +1603,7 @@ const styles = StyleSheet.create({
   modernLogoutButton: {
     backgroundColor: 'transparent',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 0,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
@@ -1519,7 +1618,7 @@ const styles = StyleSheet.create({
   modernDeleteAccountButton: {
     backgroundColor: 'transparent',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 0,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
@@ -1560,7 +1659,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderWidth: 2,
     borderColor: COLORS.iconSecondary,
-    borderRadius: 6,
+    borderRadius: 0,
     marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1591,7 +1690,7 @@ const styles = StyleSheet.create({
   },
   followingBadge: {
     backgroundColor: COLORS.success,
-    borderRadius: 12,
+    borderRadius: 0,
     paddingHorizontal: 10,
     paddingVertical: 5,
     marginLeft: 10,
@@ -1632,7 +1731,7 @@ const styles = StyleSheet.create({
   },
   miniFollowingBadge: {
     backgroundColor: COLORS.success,
-    borderRadius: 10,
+    borderRadius: 0,
     paddingHorizontal: 8,
     paddingVertical: 3,
     marginLeft: 10,
@@ -1652,7 +1751,7 @@ const styles = StyleSheet.create({
     top: 8,
     right: 8,
     backgroundColor: COLORS.buttonBackgroundPrimary,
-    borderRadius: 12,
+    borderRadius: 0,
     width: 24,
     height: 24,
     justifyContent: 'center',
@@ -1670,7 +1769,7 @@ const styles = StyleSheet.create({
     top: 8,
     right: 8,
     backgroundColor: COLORS.buttonBackgroundPrimary,
-    borderRadius: 12,
+    borderRadius: 0,
     width: 24,
     height: 24,
     justifyContent: 'center',
@@ -1718,7 +1817,7 @@ const styles = StyleSheet.create({
   infoButton: {
     width: 20,
     height: 20,
-    borderRadius: 10,
+    borderRadius: 0,
     backgroundColor: COLORS.iconSecondary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1731,7 +1830,7 @@ const styles = StyleSheet.create({
   },
   gradeInfoContainer: {
     backgroundColor: COLORS.backgroundPrimary,
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 18,
     marginTop: 15,
     borderWidth: 1,
@@ -1785,7 +1884,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.borderInput,
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 15,
     backgroundColor: COLORS.backgroundPrimary,
     shadowColor: '#000',
@@ -1798,7 +1897,7 @@ const styles = StyleSheet.create({
     maxHeight: 300,
     borderColor: COLORS.borderPrimary,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 15,
     backgroundColor: COLORS.backgroundPrimary,
     shadowColor: '#000',
@@ -1810,7 +1909,7 @@ const styles = StyleSheet.create({
   errorContainer: {
     backgroundColor: COLORS.errorBackground || '#ffebee',
     padding: 10,
-    borderRadius: 5,
+    borderRadius: 0,
     marginBottom: 15,
   },
   errorText: {
@@ -1821,7 +1920,7 @@ const styles = StyleSheet.create({
   successContainer: {
     backgroundColor: COLORS.successBackground || '#e8f5e9',
     padding: 10,
-    borderRadius: 5,
+    borderRadius: 0,
     marginBottom: 15,
   },
   successText: {
@@ -1879,7 +1978,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.backgroundSecondary,
     padding: 15,
-    borderRadius: 10,
+    borderRadius: 0,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.borderPrimary,
@@ -1893,7 +1992,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#D32F2F',
     padding: 15,
-    borderRadius: 10,
+    borderRadius: 0,
     alignItems: 'center',
   },
   confirmDeleteButtonText: {
@@ -1920,7 +2019,7 @@ const styles = StyleSheet.create({
   },
   cleanResetButton: {
     padding: 8,
-    borderRadius: 20,
+    borderRadius: 0,
     backgroundColor: 'transparent',
   },
   resetButton: {
@@ -1929,7 +2028,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     paddingVertical: 3,
     paddingHorizontal: 6,
-    borderRadius: 4,
+    borderRadius: 0,
     borderWidth: 0.5,
     borderColor: COLORS.borderPrimary,
     opacity: 0.8,
@@ -1948,7 +2047,7 @@ const styles = StyleSheet.create({
   },
   summaryContainer: {
     backgroundColor: COLORS.backgroundPrimary,
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 15,
     marginTop: 10,
     borderWidth: 1,
@@ -2007,7 +2106,7 @@ const styles = StyleSheet.create({
   },
   specialtyMainBadge: {
     backgroundColor: COLORS.success,
-    borderRadius: 8,
+    borderRadius: 0,
     paddingHorizontal: 8,
     paddingVertical: 3,
     marginLeft: 10,
@@ -2042,7 +2141,7 @@ const styles = StyleSheet.create({
   },
   specialtySubBadge: {
     backgroundColor: COLORS.buttonBackgroundPrimary,
-    borderRadius: 8,
+    borderRadius: 0,
     paddingHorizontal: 8,
     paddingVertical: 3,
     marginLeft: 10,

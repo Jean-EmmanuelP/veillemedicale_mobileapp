@@ -8,21 +8,21 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { setUser, setSession } from '../store/authSlice';
 import { ActivityIndicator, View } from 'react-native';
-import { supabase } from '../lib/supabase';
 import NotificationService from '../services/NotificationService';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import { ConvexProvider } from 'convex/react';
-import { convex } from '../lib/convex';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import 'react-native-url-polyfill/auto';
 
-// Phase 4 — Auth Convex (feature flag gated).
+// Auth mobile = 100% Convex. Le legacy `SupabaseAuthBootstrap` a été retiré ici
+// (voir `lib/authConfig.ts` pour le contexte). Toute la logique auth passe par
+// `<ConvexAuthProvider>` + `<ConvexAuthBridge/>` ci-dessous.
 import { AUTH_CONVEX_ENABLED } from '../lib/authConfig';
 import {
   ConvexAuthProvider,
   secureStorage,
+  convex,
   convexAuthBridge,
   resetConvexAuthBridge,
   hydrateConvexUserProfile,
@@ -49,9 +49,6 @@ import {
 /**
  * ConvexAuthBridge — synchronise le hook React `useAuthActions()` / `useConvexAuth()`
  * avec le module-level `convexAuthBridge` que les thunks Redux consomment.
- *
- * Rendu UNIQUEMENT quand `AUTH_CONVEX_ENABLED === true`. Zéro impact prod tant que
- * le flag est OFF (l'arbre `<ConvexAuthProvider>` n'est même pas monté).
  *
  * Hydrate aussi Redux `state.auth.user` au boot / après un refresh de session en
  * arrière-plan (ex : app reprise après plusieurs jours).
@@ -89,6 +86,7 @@ function ConvexAuthBridge() {
       if (hydrated) {
         dispatch(setUser(null));
         dispatch(setSession(null));
+        try { NotificationService.getInstance().resetInitState(); } catch {}
         setHydrated(false);
       }
       return;
@@ -120,109 +118,6 @@ function ConvexAuthBridge() {
   return null;
 }
 
-/**
- * SupabaseAuthBootstrap — logique d'initialisation Supabase Auth (legacy).
- * Ne monte QUE quand `AUTH_CONVEX_ENABLED === false`. Comportement prod actuel
- * inchangé.
- */
-function SupabaseAuthBootstrap({ onInitialized }: { onInitialized: () => void }) {
-  const dispatch = useDispatch();
-
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session) {
-          console.log('🔐 [ROOT LAYOUT] Session found during initialization:', {
-            userId: session.user.id,
-            email: session.user.email,
-            isAnonymous: session.user.is_anonymous,
-          });
-
-          dispatch(setUser({
-            id: session.user.id,
-            email: session.user.email,
-            name: session.user.user_metadata?.name || '',
-            is_anonymous: session.user.is_anonymous || false,
-          }));
-          dispatch(setSession(session.access_token));
-
-          if (!session.user.is_anonymous) {
-            try {
-              await NotificationService.getInstance().initialize(session.user.id);
-            } catch (error) {
-              console.error('Failed to initialize notifications:', error);
-            }
-          } else {
-            console.log('👤 [ROOT LAYOUT] Anonymous user - skipping notification initialization');
-          }
-        } else {
-          console.log('🔐 [ROOT LAYOUT] No session found during initialization');
-          dispatch(setUser(null));
-          dispatch(setSession(null));
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        dispatch(setUser(null));
-        dispatch(setSession(null));
-      } finally {
-        onInitialized();
-      }
-    };
-
-    initializeAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session) {
-        console.log('🔐 [ROOT LAYOUT] Auth state changed - session found:', {
-          event: _event,
-          userId: session.user.id,
-          email: session.user.email,
-          isAnonymous: session.user.is_anonymous,
-        });
-
-        dispatch(setUser({
-          id: session.user.id,
-          email: session.user.email,
-          name: session.user.user_metadata?.name || '',
-          is_anonymous: session.user.is_anonymous || false,
-        }));
-        dispatch(setSession(session.access_token));
-
-        if (!session.user.is_anonymous) {
-          try {
-            await NotificationService.getInstance().initialize(session.user.id);
-          } catch (error) {
-            console.error('Failed to initialize notifications on auth change:', error);
-          }
-        } else {
-          console.log('👤 [ROOT LAYOUT] Anonymous user - skipping notification initialization on auth change');
-        }
-      } else {
-        console.log('🔐 [ROOT LAYOUT] Auth state changed - session cleared:', {
-          event: _event,
-        });
-
-        // Reset guards NotificationService pour permettre une réinit propre au next login
-        try { NotificationService.getInstance().resetInitState(); } catch {}
-        dispatch(setUser(null));
-        dispatch(setSession(null));
-
-        try {
-          await NotificationService.getInstance().cancelAllNotifications();
-        } catch (error) {
-          console.error('Failed to cancel notifications on logout:', error);
-        }
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [dispatch, onInitialized]);
-
-  return null;
-}
-
 // Composant séparé pour la logique de navigation
 function NavigationLayout() {
   const segments = useSegments();
@@ -230,15 +125,13 @@ function NavigationLayout() {
   const { user } = useSelector((state: RootState) => state.auth);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Quand le flag Convex est ON, on considère l'app initialisée dès que le
-  // provider a fini son `isLoading` initial. Sinon, le bootstrap Supabase gère.
+  // App = 100 % Convex → on considère l'app initialisée dès que le provider a
+  // eu le temps de rehydrate. Le bridge Convex s'occupe de la session en
+  // arrière-plan.
   useEffect(() => {
-    if (AUTH_CONVEX_ENABLED) {
-      // Le bridge Convex se hydrate en arrière-plan — pas besoin d'attendre.
-      // On laisse un tick pour que redux-persist réhydrate d'abord.
-      const t = setTimeout(() => setIsInitialized(true), 100);
-      return () => clearTimeout(t);
-    }
+    // Un tick pour que redux-persist réhydrate d'abord.
+    const t = setTimeout(() => setIsInitialized(true), 100);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
@@ -255,25 +148,19 @@ function NavigationLayout() {
 
   if (!isInitialized) {
     return (
-      <>
-        {!AUTH_CONVEX_ENABLED && <SupabaseAuthBootstrap onInitialized={() => setIsInitialized(true)} />}
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" />
-        </View>
-      </>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
     );
   }
 
   return (
-    <>
-      {!AUTH_CONVEX_ENABLED && <SupabaseAuthBootstrap onInitialized={() => setIsInitialized(true)} />}
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(app)" />
-        <Stack.Screen name="discipline-modal" options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="subdiscipline-modal" options={{ presentation: 'modal', headerShown: false }} />
-      </Stack>
-    </>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(app)" />
+      <Stack.Screen name="discipline-modal" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="subdiscipline-modal" options={{ presentation: 'modal', headerShown: false }} />
+    </Stack>
   );
 }
 
@@ -281,6 +168,16 @@ function NavigationLayout() {
 export default function RootLayout() {
   const navigationRef = useNavigationContainerRef();
   useReactNavigationDevTools(navigationRef as any);
+
+  // Sanity check — si quelqu'un remet `AUTH_CONVEX_ENABLED` en false, ce log
+  // remonte immédiatement (l'app mobile n'est PAS conçue pour tourner en
+  // Supabase Auth ici — le boot n'a plus le `SupabaseAuthBootstrap`).
+  if (!AUTH_CONVEX_ENABLED) {
+    console.error(
+      '[RootLayout] AUTH_CONVEX_ENABLED=false détecté — le mobile est censé être 100% Convex. ' +
+      'Ce build ne va pas booter correctement (pas de bootstrap Supabase legacy).'
+    );
+  }
 
   let [fontsLoaded, fontError] = useFonts({
     Roboto_100Thin,
@@ -306,7 +203,7 @@ export default function RootLayout() {
   useEffect(() => {
     // Purge le bridge à l'unmount de l'app.
     return () => {
-      if (AUTH_CONVEX_ENABLED) resetConvexAuthBridge();
+      resetConvexAuthBridge();
     };
   }, []);
 
@@ -318,30 +215,18 @@ export default function RootLayout() {
     );
   }
 
-  // Wrap conditionnel : quand `AUTH_CONVEX_ENABLED === false`, on court-circuite
-  // complètement `<ConvexAuthProvider>` — zéro impact runtime sur prod actuelle.
-  const providerTree = (
-    <>
-      <StatusBar style="dark" />
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <BottomSheetModalProvider>
-          {AUTH_CONVEX_ENABLED && <ConvexAuthBridge />}
-          <NavigationLayout />
-        </BottomSheetModalProvider>
-      </GestureHandlerRootView>
-    </>
-  );
-
   return (
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
-        {AUTH_CONVEX_ENABLED ? (
-          <ConvexAuthProvider client={convex as any} storage={secureStorage as any}>
-            {providerTree}
-          </ConvexAuthProvider>
-        ) : (
-          <ConvexProvider client={convex}>{providerTree}</ConvexProvider>
-        )}
+        <ConvexAuthProvider client={convex as any} storage={secureStorage as any}>
+          <StatusBar style="dark" />
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <BottomSheetModalProvider>
+              <ConvexAuthBridge />
+              <NavigationLayout />
+            </BottomSheetModalProvider>
+          </GestureHandlerRootView>
+        </ConvexAuthProvider>
       </PersistGate>
     </Provider>
   );
