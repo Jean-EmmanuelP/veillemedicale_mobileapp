@@ -16,7 +16,7 @@
 
 import { ConvexAuthProvider, type TokenStorage } from '@convex-dev/auth/react';
 import { anyApi } from 'convex/server';
-import { convex, CONVEX_URL } from '../convex';
+import { convex, CONVEX_URL, CONVEX_SITE_URL } from '../convex';
 
 // Lazy import de expo-secure-store : le module natif peut ne pas être linké
 // dans certains builds (dev sans prebuild). On charge à la demande, avec un
@@ -41,13 +41,9 @@ const _memStore: Record<string, string> = {};
 
 /**
  * URL du site Convex (host `.convex.site`) — utilisé pour les endpoints OAuth
- * (`/api/auth/signin/google`). Dérivé de `EXPO_PUBLIC_CONVEX_URL` (host `.convex.cloud`).
- * Une override manuelle via `EXPO_PUBLIC_CONVEX_SITE_URL` est possible pour les
- * déploiements custom.
+ * (`/api/auth/signin/google`). Fourni par app.config.js (`extra.convexSiteUrl`).
  */
-export const CONVEX_SITE_URL: string =
-  process.env.EXPO_PUBLIC_CONVEX_SITE_URL ||
-  CONVEX_URL.replace('.convex.cloud', '.convex.site');
+export { CONVEX_SITE_URL };
 
 /**
  * SecureStore n'accepte que `[A-Za-z0-9._-]` dans les clés. `@convex-dev/auth`

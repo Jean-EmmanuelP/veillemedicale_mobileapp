@@ -158,6 +158,7 @@ function NavigationLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
+      <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
       <Stack.Screen name="discipline-modal" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="subdiscipline-modal" options={{ presentation: 'modal', headerShown: false }} />
     </Stack>

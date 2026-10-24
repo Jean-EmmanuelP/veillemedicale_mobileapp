@@ -8,6 +8,8 @@ import { fetchProfile } from '../../store/profileSlice';
 import { useRouter } from 'expo-router';
 import GuestAccountModal from '../../components/GuestAccountModal';
 import AnimatedTabBar from '../../components/AnimatedTabBar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { onboardingSkippedKey } from '../../lib/onboarding';
 
 export default function AppLayout() {
   const dispatch = useDispatch();
@@ -50,6 +52,26 @@ export default function AppLayout() {
       });
     }
   }, [dispatch, userId, isAnonymous, user?.is_anonymous]);
+
+  // Onboarding : un compte sans discipline suivie choisit ses spécialités avant
+  // d'arriver sur le feed (sauf s'il a choisi « Plus tard »).
+  const { profile, loading: profileLoading, currentSubscriptions } = useSelector(
+    (state: RootState) => state.profile
+  );
+  const profileReady = !!userId && !isAnonymous && !profileLoading && profile?.id === userId;
+  const hasSubscriptions = currentSubscriptions.length > 0;
+  useEffect(() => {
+    if (!profileReady || hasSubscriptions || !userId) return;
+    let cancelled = false;
+    AsyncStorage.getItem(onboardingSkippedKey(userId))
+      .catch(() => null)
+      .then((skipped) => {
+        if (!cancelled && !skipped) router.replace('/onboarding');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profileReady, hasSubscriptions, userId, router]);
 
   const handleGoToSettings = () => {
     setShowGuestModal(false);
