@@ -76,14 +76,43 @@ Légende priorité : **P0** = cassé en prod pour les comptes Convex Auth,
 | `services/NotificationService.ts:203`, `:234` | edge `send-push-notification` avec JWT Supabase (absent pour Convex Auth) | action Convex `pushTokens.send` (internal) appelant l'API Expo Push ; déclenchement par crons existants (`userFeed.buildAllFeeds`) | P1 |
 | `app/profile.tsx:317` | broadcast admin : liste **tous** les `user_profiles` côté client puis boucle d'appels edge | action admin `pushTokens.broadcast` (check `userMirror.isAdmin`) | P1 |
 
-### Écrans sociaux (identité passée en argument)
+### Arguments d'identité passés par le client (`userId` / `supabaseId`)
 
-Pas de client Supabase, mais passent `supabaseId: user.id` explicitement :
-`app/(app)/messages/index.tsx:58`, `app/(app)/messages/[id].tsx:89,95,113,122`,
-`app/(app)/u/[userId].tsx:64`, `app/(app)/live-chat/index.tsx:162,180`.
-→ Retirer l'argument dès que `social.*` / `liveChat.*` lisent l'identité Convex
-Auth (chantier backend en cours). `otherUserSupabaseId` / `getPublicProfile({ supabaseId })`
-restent (identifiant public d'un autre utilisateur).
+Le mobile passe encore l'identité de l'utilisateur courant en argument aux
+fonctions Convex. Le serveur va dériver l'identité de Convex Auth (args gardés
+optionnels pour compat) ; **ces arguments seront retirés côté mobile dans une
+étape ultérieure**, une fois le déploiement serveur en place. Tant qu'ils
+existent, un client peut usurper un autre `userId` si la fonction ne vérifie
+pas l'identité.
+
+| Fichier:ligne | Fonction | Argument à retirer |
+|---|---|---|
+| `app/(app)/discussions/index.tsx:69` | `discussions.list` | `userId` |
+| `app/(app)/discussions/index.tsx:90` | `discussions.voteFor` | `userId` |
+| `app/(app)/discussions/index.tsx:256` | `discussions.createFor` | `userId` |
+| `app/(app)/discussions/[id].tsx:72` | `discussions.get` | `userId` |
+| `app/(app)/discussions/[id].tsx:89` | `discussions.voteFor` | `userId` |
+| `app/(app)/discussions/[id].tsx:106` | `discussions.voteCommentFor` | `userId` |
+| `app/(app)/discussions/[id].tsx:123` | `discussions.addCommentFor` | `userId` |
+| `app/(app)/live-chat/index.tsx:162` | `liveChat.sendMessage` | `supabaseId` |
+| `app/(app)/live-chat/index.tsx:180` | `liveChat.deleteMessage` | `supabaseId` |
+| `app/(app)/messages/index.tsx:58` | `social.listConversations` | `supabaseId` |
+| `app/(app)/messages/[id].tsx:89` | `social.listConversations` | `supabaseId` |
+| `app/(app)/messages/[id].tsx:95` | `social.listMessages` | `supabaseId` |
+| `app/(app)/messages/[id].tsx:113` | `social.markRead` | `supabaseId` |
+| `app/(app)/messages/[id].tsx:122` | `social.sendDirectMessage` | `supabaseId` |
+| `app/(app)/u/[userId].tsx:80` | `social.getOrCreateConversation` | `supabaseId` (garder `otherUserSupabaseId`) |
+| `app/search.tsx:56`, `store/articlesSlice.ts:222` | `articles.getArticlesFeed` | `userId` |
+| `store/articlesSlice.ts:96` | `articles.getUserSubscriptionStructureFor` | `userId` |
+| `store/articlesSlice.ts:285`, `:319`, `:352` | `interactions.setLikeFor` / `markReadFor` / `setThumbsUpFor` | `userId` |
+| `store/profileSlice.ts:95` | `userMirror.getBySupabaseId` | remplacer par une query `getMe` sans arg |
+| `store/profileSlice.ts:136` | `articles.getMobileProfileRelations` | `userId` |
+
+Restent légitimes (identifiant public d'un **autre** utilisateur) :
+`social.getPublicProfile({ supabaseId })` (`app/(app)/u/[userId].tsx:67`) et
+`otherUserSupabaseId`. Les nouveaux remplacements listés plus haut
+(`getSavedArticlesFor`, `getLikedFeed`, `syncUserProfileFor`, …) doivent être
+appelés sans argument d'identité.
 
 ### Fin de chantier (P2)
 

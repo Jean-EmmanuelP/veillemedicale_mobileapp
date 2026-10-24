@@ -33,6 +33,21 @@ type Profile = {
   isAdmin: boolean;
 };
 
+// N'ouvre que des URLs https://linkedin.com ou https://*.linkedin.com
+// (le champ est saisi par l'utilisateur — évite d'ouvrir un schéma/hôte arbitraire).
+function safeLinkedinUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.trim());
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:') return null;
+    if (host !== 'linkedin.com' && !host.endsWith('.linkedin.com')) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const router = useRouter();
@@ -54,6 +69,7 @@ export default function UserProfileScreen() {
     queryError = e?.message || String(e);
   }
   const profile: Profile | null = (raw as Profile | null) ?? null;
+  const linkedinUrl = safeLinkedinUrl(profile?.linkedinUrl ?? null);
   const isLoading = raw === undefined && !queryError;
 
   const startConversation = async () => {
@@ -119,9 +135,9 @@ export default function UserProfileScreen() {
                 <Text style={styles.specialty}>{profile.specialty}</Text>
               )}
             </View>
-            {profile.linkedinUrl && (
+            {linkedinUrl && (
               <TouchableOpacity
-                onPress={() => profile.linkedinUrl && Linking.openURL(profile.linkedinUrl)}
+                onPress={() => Linking.openURL(linkedinUrl)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}
               >
                 <Text style={styles.link}>LinkedIn</Text>
