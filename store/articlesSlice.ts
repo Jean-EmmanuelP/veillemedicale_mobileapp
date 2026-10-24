@@ -134,7 +134,7 @@ export const fetchSubDisciplinesForFilter = createAsyncThunk<
 export const fetchSavedArticles = createAsyncThunk<number[], string | undefined>(
   'articles/fetchSavedArticles',
   async () => {
-    const ids: any = await convex.query(api.interactions.getSavedArticlesFor, {});
+    const ids: any = await convex.query(api.interactions.getSavedArticles, {});
     return (Array.isArray(ids) ? ids : []) as number[];
   }
 );

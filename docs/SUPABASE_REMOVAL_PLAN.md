@@ -131,7 +131,7 @@ pas l'identité.
 Restent légitimes (identifiant public d'un **autre** utilisateur) :
 `social.getPublicProfile({ supabaseId })` (`app/(app)/u/[userId].tsx:67`) et
 `otherUserSupabaseId`. Les nouveaux remplacements listés plus haut
-(`getSavedArticlesFor`, `getLikedFeed`, `syncUserProfileFor`, …) doivent être
+(`getSavedArticles`, `getLikedFeed`, `syncUserProfileFor`, …) doivent être
 appelés sans argument d'identité.
 
 ### Fin de chantier (P2)
