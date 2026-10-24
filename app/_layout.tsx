@@ -59,6 +59,9 @@ function ConvexAuthBridge() {
   const authToken = useAuthToken();
   const dispatch = useDispatch();
   const [hydrated, setHydrated] = useState(false);
+  // `state.auth.user` est persisté (redux-persist) : il peut survivre à une
+  // session Convex disparue (refresh token expiré/révoqué, autre déploiement).
+  const persistedUserId = useSelector((state: RootState) => state.auth.user?.id ?? null);
 
   useEffect(() => {
     // Publie les callbacks du provider sur le bridge global (thunks Redux).
@@ -81,9 +84,9 @@ function ConvexAuthBridge() {
   useEffect(() => {
     if (isLoading) return;
     if (!isAuthenticated) {
-      // Convex a désauthentifié (session expirée) — purge Redux si on avait
-      // un user Convex (source: 'convex' dans les logs).
-      if (hydrated) {
+      // Pas de session Convex : purge Redux si un user y traîne (session
+      // expirée, ou user persisté sans session valide au démarrage).
+      if (hydrated || persistedUserId) {
         dispatch(setUser(null));
         dispatch(setSession(null));
         try { NotificationService.getInstance().resetInitState(); } catch {}
@@ -113,7 +116,7 @@ function ConvexAuthBridge() {
         );
       }
     })();
-  }, [isAuthenticated, isLoading, hydrated, dispatch]);
+  }, [isAuthenticated, isLoading, hydrated, persistedUserId, dispatch]);
 
   return null;
 }
