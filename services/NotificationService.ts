@@ -114,6 +114,16 @@ class NotificationService {
     }
   }
 
+  // Détache le token de l'utilisateur (à appeler AVANT de révoquer la session).
+  async unregisterPushToken(): Promise<void> {
+    if (!this.pushToken) return;
+    try {
+      await convex.mutation(api.pushTokens.unregister, { token: this.pushToken });
+    } catch (error) {
+      console.warn('Push token non désenregistré:', (error as Error).message);
+    }
+  }
+
   // Programmer les notifications selon la fréquence
   async scheduleNotifications(preferences: NotificationPreferences): Promise<void> {
     if (!preferences.enabled) {

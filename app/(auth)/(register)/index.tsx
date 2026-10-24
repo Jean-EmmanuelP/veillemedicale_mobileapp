@@ -161,7 +161,7 @@ export default function RegisterScreen() {
             >
               <TextInput
                 style={[styles.input, { paddingRight: 50 }]}
-                placeholder="Minimum 6 caractères"
+                placeholder="Minimum 8 caractères"
                 placeholderTextColor={COLORS.text.disabled}
                 value={password}
                 onChangeText={setPassword}

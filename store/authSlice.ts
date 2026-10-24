@@ -14,6 +14,7 @@ import {
   getConvexAccessToken,
   type HydratedConvexUser,
 } from '../lib/auth/convexAuthClient';
+import NotificationService from '../services/NotificationService';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,9 @@ export const signUp = createAsyncThunk(
 
 /** Déconnexion : révoque la session Convex et purge les tokens SecureStore. */
 export const signOut = createAsyncThunk('auth/signOut', async () => {
+  const notifications = NotificationService.getInstance();
+  await notifications.unregisterPushToken();
+  notifications.resetInitState();
   try {
     await convexSignOut();
   } catch (err) {

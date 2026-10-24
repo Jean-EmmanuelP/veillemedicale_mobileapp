@@ -5,6 +5,26 @@ Convex Auth (`lib/authConfig.ts` hardcodé `true`), mais **Supabase est encore
 utilisé dans 10 fichiers**. Ce document inventorie chaque usage et la fonction
 Convex de remplacement. Rien n'est encore remplacé.
 
+## Statut (phase 2, 2026-10-24) : terminé
+
+Tout l'inventaire ci-dessous est implémenté. Le client Supabase
+(`lib/supabase.ts`) et la dépendance `@supabase/supabase-js` sont supprimés.
+
+| Flow | Implémentation |
+|---|---|
+| Inscription | `signIn('password', { flow: 'signUp' })` puis `userMirror.updateMyProfile` |
+| Mot de passe oublié | Code OTP à 8 chiffres : `flow: 'reset'` puis `flow: 'reset-verification'` (plus de lien profond `sano://`) |
+| Connexion / déconnexion | Convex Auth ; `pushTokens.unregister`, puis `signOut`, puis purge SecureStore, puis reset Redux |
+| Suppression de compte | `userMirror.deleteMe({})` |
+| Profil, abonnements, grades | `userMirror.me`, `articles.getMobileProfileRelations`, `userMirror.updateMyProfile` |
+| Like, lu, pouce, favoris, détail | `interactions.setLikeFor` / `setReadFor` / `setThumbsUpFor`, `articles.getLikedFeed`, `getArticleDetailFor` + `interactions.getUserArticleState` |
+| Push | `pushTokens.register` / `unregister` (envoi côté serveur) |
+| Broadcast admin | Supprimé (écran secret avec mot de passe en dur) |
+| Mode invité | Supprimé (pas de provider Anonymous côté backend) |
+| Args d'identité | Retirés de tous les appels (voir la section dédiée) |
+
+Le reste du document décrit l'état **avant** la migration.
+
 ## Contexte important
 
 - **Les utilisateurs connectés via Convex Auth n'ont pas de session Supabase.**
