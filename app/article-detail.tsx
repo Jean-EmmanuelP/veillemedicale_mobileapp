@@ -20,6 +20,7 @@ import { convex, api } from '../lib/convex';
 import { useQuery } from 'convex/react';
 import { Article } from '../types';
 import { FONTS, FONT_SIZES, LINE_HEIGHTS } from '../assets/constants/fonts';
+import ArticleContent from '../components/ArticleContent';
 import { COLORS } from '../assets/constants/colors';
 import * as Network from 'expo-network';
 import { renderGradeStars } from '../utils/gradeStars';
@@ -252,57 +253,6 @@ export default function ArticleDetailScreen() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const renderContent = (content: string) => {
-    const lines = content.split('\n');
-    return lines.map((line, index) => {
-      // Titre principal (# avec emoji)
-      if (line.startsWith('# ')) {
-        return (
-          <Text key={index} style={styles.mainHeading}>
-            {line.substring(2)}
-          </Text>
-        );
-      }
-      // Sous-section (##)
-      else if (line.startsWith('## ')) {
-        return (
-          <Text key={index} style={styles.contentHeading}>
-            {line.substring(3)}
-          </Text>
-        );
-      }
-      // Sous-sous-section (###)
-      else if (line.startsWith('### ')) {
-        return (
-          <Text key={index} style={styles.subHeading}>
-            {line.substring(4)}
-          </Text>
-        );
-      }
-      // Liste à puces (-)
-      else if (line.trim().startsWith('- ')) {
-        const bulletContent = line.trim().substring(2);
-        return (
-          <View key={index} style={styles.bulletItem}>
-            <Text style={styles.bullet}>•</Text>
-            <Text style={styles.bulletText}>{bulletContent}</Text>
-          </View>
-        );
-      }
-      // Ligne vide
-      else if (line.trim() === '') {
-        return <View key={index} style={{ height: LINE_HEIGHTS.base / 2 }} />;
-      }
-      // Texte normal
-      else {
-        return (
-          <Text key={index} style={styles.modalContentText}>
-            {line}
-          </Text>
-        );
-      }
-    });
-  };
 
   if (loading) {
     return (
@@ -457,7 +407,7 @@ export default function ArticleDetailScreen() {
             </View>
           )}
 
-          {renderContent(article.content)}
+          <ArticleContent content={article.content} />
 
           {article.link && (
             <TouchableOpacity style={styles.originalArticleButton} onPress={handleOpenOriginalArticle}>
@@ -548,55 +498,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.sans.regular,
     color: COLORS.textSecondary,
-  } as TextStyle,
-  mainHeading: {
-    fontSize: FONT_SIZES.xxl,
-    fontFamily: FONTS.serifDisplay.bold,
-    color: COLORS.textPrimary,
-    marginTop: 24,
-    marginBottom: 16,
-    lineHeight: LINE_HEIGHTS.xxl,
-  } as TextStyle,
-  contentHeading: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.sans.bold,
-    color: COLORS.textPrimary,
-    marginTop: 20,
-    marginBottom: 10,
-  } as TextStyle,
-  subHeading: {
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.bold,
-    color: COLORS.textPrimary,
-    marginTop: 16,
-    marginBottom: 8,
-  } as TextStyle,
-  bulletItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-    paddingLeft: 8,
-  } as ViewStyle,
-  bullet: {
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.bold,
-    color: COLORS.iconPrimary,
-    marginRight: 8,
-    marginTop: 2,
-  } as TextStyle,
-  bulletText: {
-    flex: 1,
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.regular,
-    lineHeight: LINE_HEIGHTS.base * 1.4,
-    color: COLORS.textPrimary,
-  } as TextStyle,
-  modalContentText: {
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.sans.regular,
-    lineHeight: LINE_HEIGHTS.base * 1.5,
-    color: COLORS.textPrimary,
-    marginBottom: 10,
   } as TextStyle,
   originalArticleButton: {
     flexDirection: 'row',

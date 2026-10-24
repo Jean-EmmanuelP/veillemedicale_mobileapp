@@ -124,6 +124,11 @@ export default function SearchScreen() {
             onChangeText={handleSearch}
             autoFocus
             returnKeyType="search"
+            // Requête envoyée telle quelle à l'index de recherche : pas de
+            // correction iOS (« cognitivo » → « Cognitive » faisait rater l'article).
+            autoCorrect={false}
+            autoCapitalize="none"
+            spellCheck={false}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => handleSearch('')} style={styles.clearButton}>
