@@ -1,5 +1,5 @@
 /**
- * authSlice — Redux state d'auth mobile, 100% Convex Auth.
+ * authSlice — Redux state d'auth mobile, basé sur Convex Auth.
  *
  * Historique : ce slice était bimodal Supabase ↔ Convex derrière `AUTH_CONVEX_ENABLED`.
  * Depuis que le flag est hardcodé `true` (cf. `lib/authConfig.ts`), toutes les
@@ -8,8 +8,9 @@
  * Interface `state.auth.{user, session, isAnonymous, linkingAccount, linkStep}`
  * strictement préservée — les 30+ écrans consommateurs ne sont pas touchés.
  *
- * ⚠️ Le seul usage Supabase restant est `supabase.auth.signInAnonymously()` —
- * Convex Auth n'a pas de mode anonyme. La purge dual (Supabase + Convex) au
+ * ⚠️ Usage Supabase restant ici : `supabase.auth.signInAnonymously()` (mode invité —
+ * Convex Auth n'a pas de mode anonyme). D'autres écrans/slices utilisent encore
+ * Supabase, cf. `docs/SUPABASE_REMOVAL_PLAN.md`. La purge dual (Supabase + Convex) au
  * signOut couvre les sessions résiduelles legacy.
  */
 
@@ -109,7 +110,7 @@ export const signUp = createAsyncThunk(
 
 /**
  * Connexion anonyme — TOUJOURS Supabase (Convex Auth n'a pas d'anon).
- * Seul usage `supabase.auth.*` restant côté mobile.
+ * Usage `supabase.auth.*` restant dans ce slice (voir docs/SUPABASE_REMOVAL_PLAN.md).
  */
 export const signInAnonymously = createAsyncThunk(
   'auth/signInAnonymously',

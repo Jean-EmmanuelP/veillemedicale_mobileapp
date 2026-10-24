@@ -1,32 +1,31 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Platform,
   SafeAreaView,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { FONTS, FONT_SIZES } from '../assets/constants/fonts';
-import { COLORS } from '../assets/constants/colors';
+import { COLORS, TYPOGRAPHY, SPACING, RADIUS, SHADOWS } from '../assets/design-system';
 
 interface FilterHeaderProps {
   disciplines: string[];        // Main discipline names
   subDisciplines?: string[];     // Optional: Sub-discipline names for selected main discipline
   selectedDiscipline: string;   // Currently selected main discipline name
   selectedSubDiscipline: string | null; // Currently selected sub-discipline name
-  selectedGrade: string | null;   // New prop for selected grade
+  selectedGrade: string | null;   // Selected grade
   onDisciplineChange: (discipline: string) => void;
   onSubDisciplineChange: (subDiscipline: string | null) => void;
-  onGradeChange: (grade: string | null) => void;   // New prop for grade change handler
+  onGradeChange: (grade: string | null) => void;
   loadingSubDisciplines?: boolean; // Optional: To show loading for sub-disciplines
 }
 
 const gradeOptions = [
-  { value: null, label: 'Grades' }, // Represents 'all grades'
+  { value: null, label: 'Grades' },
   { value: 'A', label: 'Grade A' },
   { value: 'B', label: 'Grade B' },
   { value: 'C', label: 'Grade C' },
@@ -84,29 +83,35 @@ export default function FilterHeader({
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={styles.filterButton}
+        <Pressable
+          style={({ pressed }) => [
+            styles.filterButton,
+            pressed && styles.filterButtonPressed,
+          ]}
           onPress={handleDisciplinePress}
         >
           <Text style={styles.filterButtonText} numberOfLines={1}>{selectedDisciplineName}</Text>
-          <Ionicons name="chevron-down" size={16} color={COLORS.iconSecondary} />
-        </TouchableOpacity>
+          <Ionicons name="chevron-down" size={16} color={COLORS.icon.secondary} />
+        </Pressable>
 
         {selectedDiscipline !== 'all' && (
-          <TouchableOpacity
-            style={[styles.filterButton, (!subDisciplines || subDisciplines.length === 0) && !loadingSubDisciplines && styles.filterButtonDisabled]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.filterButton,
+              (!subDisciplines || subDisciplines.length === 0) && !loadingSubDisciplines && styles.filterButtonDisabled,
+              pressed && canShowSubDisciplines && styles.filterButtonPressed,
+            ]}
             onPress={handleSubDisciplinePress}
             disabled={!canShowSubDisciplines && !loadingSubDisciplines}
           >
             {loadingSubDisciplines ? (
-              <ActivityIndicator size="small" color={COLORS.iconPrimary} />
+              <ActivityIndicator size="small" color={COLORS.primary.main} />
             ) : (
               <Text style={styles.filterButtonText} numberOfLines={1}>{selectedSubDisciplineName}</Text>
             )}
-            <Ionicons name="chevron-down" size={16} color={COLORS.iconSecondary} />
-          </TouchableOpacity>
+            <Ionicons name="chevron-down" size={16} color={COLORS.icon.secondary} />
+          </Pressable>
         )}
-
       </View>
 
       <View style={styles.gradeSection}>
@@ -122,33 +127,50 @@ export default function FilterHeader({
         <View style={styles.gradeSliderContainer}>
           <View style={styles.gradeLine} />
 
-          <TouchableOpacity
-            style={[styles.gradePoint, selectedGrade === 'A' && styles.gradePointSelected]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.gradePoint,
+              selectedGrade === 'A' && styles.gradePointSelected,
+              pressed && styles.gradePointPressed,
+            ]}
             onPress={() => onGradeChange('A')}
           >
             <Text style={[styles.gradePointText, selectedGrade === 'A' && styles.gradePointTextSelected]}>A</Text>
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity
-            style={[styles.gradePoint, selectedGrade === 'B' && styles.gradePointSelected]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.gradePoint,
+              selectedGrade === 'B' && styles.gradePointSelected,
+              pressed && styles.gradePointPressed,
+            ]}
             onPress={() => onGradeChange('B')}
           >
             <Text style={[styles.gradePointText, selectedGrade === 'B' && styles.gradePointTextSelected]}>B</Text>
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity
-            style={[styles.gradePoint, selectedGrade === 'C' && styles.gradePointSelected]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.gradePoint,
+              selectedGrade === 'C' && styles.gradePointSelected,
+              pressed && styles.gradePointPressed,
+            ]}
             onPress={() => onGradeChange('C')}
           >
             <Text style={[styles.gradePointText, selectedGrade === 'C' && styles.gradePointTextSelected]}>C</Text>
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity
-            style={[styles.gradePoint, styles.gradePointAll, selectedGrade === null && styles.gradePointSelected]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.gradePoint,
+              styles.gradePointAll,
+              selectedGrade === null && styles.gradePointSelected,
+              pressed && styles.gradePointPressed,
+            ]}
             onPress={() => onGradeChange(null)}
           >
             <Text style={[styles.gradePointText, selectedGrade === null && styles.gradePointTextSelected]}>Tous</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>
@@ -157,105 +179,111 @@ export default function FilterHeader({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.backgroundPrimary,
+    backgroundColor: COLORS.background.primary,
     paddingTop: Platform.OS === 'ios' ? 0 : 10,
     paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border.light,
   },
   filterContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 10,
-    paddingBottom: 5,
+    paddingHorizontal: SPACING.sm,
+    paddingBottom: SPACING.xs,
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING.xs,
   },
   filterButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1C1C1C',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    backgroundColor: COLORS.background.secondary,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.border.light,
     minWidth: 80,
   },
+  filterButtonPressed: {
+    backgroundColor: COLORS.interaction.pressed,
+  },
   filterButtonDisabled: {
-    backgroundColor: '#121212',
+    backgroundColor: COLORS.background.tertiary,
     opacity: 0.5,
   },
   filterButtonText: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.sans.medium,
-    color: COLORS.textPrimary,
+    ...TYPOGRAPHY.body.small,
+    color: COLORS.text.primary,
     flexShrink: 1,
-    marginRight: 4,
+    marginRight: SPACING.xs,
+    fontWeight: '500',
   },
   gradeSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    paddingTop: 6,
+    paddingHorizontal: SPACING.base,
+    paddingBottom: SPACING.sm,
+    paddingTop: SPACING.xs,
   },
   gradeLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   gradeLabel: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.sans.medium,
-    color: '#E0E0E0',
+    ...TYPOGRAPHY.label.small,
+    color: COLORS.text.primary,
+    fontWeight: '600',
   },
   gradeDescription: {
-    fontSize: 10,
-    fontFamily: FONTS.sans.regular,
-    color: '#757575',
+    ...TYPOGRAPHY.caption,
+    color: COLORS.text.tertiary,
   },
   gradeSliderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     position: 'relative',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
   },
   gradeLine: {
     position: 'absolute',
     left: 28,
     right: 28,
-    height: 1.5,
-    backgroundColor: '#424242',
+    height: 2,
+    backgroundColor: COLORS.border.medium,
     top: '50%',
-    marginTop: -0.75,
+    marginTop: -1,
   },
   gradePoint: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1.5,
-    borderColor: '#3A3A3A',
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.background.primary,
+    borderWidth: 2,
+    borderColor: COLORS.border.medium,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
   },
   gradePointAll: {
     width: 48,
-    borderRadius: 10,
+    borderRadius: RADIUS.md,
   },
   gradePointSelected: {
-    backgroundColor: '#2962FF',
-    borderColor: '#448AFF',
-    borderWidth: 2,
+    backgroundColor: COLORS.primary.main,
+    borderColor: COLORS.primary.main,
+  },
+  gradePointPressed: {
+    transform: [{ scale: 0.95 }],
   },
   gradePointText: {
-    fontSize: 11,
-    fontFamily: FONTS.sans.bold,
-    color: '#757575',
+    ...TYPOGRAPHY.label.small,
+    color: COLORS.text.tertiary,
+    fontWeight: '700',
   },
   gradePointTextSelected: {
-    color: '#FFFFFF',
+    color: COLORS.text.white,
   },
-}); 
+});

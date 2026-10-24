@@ -1,53 +1,66 @@
+/**
+ * DEPRECATED: Ce fichier est conservé pour la rétrocompatibilité
+ * Utilisez le nouveau design system à la place: import { COLORS } from '@/assets/design-system'
+ *
+ * Ce fichier mappe les anciennes clés vers le nouveau design system
+ */
+
+import { COLORS as DS_COLORS } from '../design-system/colors';
+
 export const COLORS = {
-  // Core Palette (Dark Theme - Black & White)
-  white: '#FFFFFF',
-  black: '#000000',
-  
+  // Core Palette (nouveau thème: Bleu & Blanc - style Lydia)
+  white: DS_COLORS.background.primary,
+  black: DS_COLORS.text.primary,
+
   // Backgrounds
-  backgroundPrimary: '#000000',       // Main app background (black)
-  backgroundSecondary: '#181818',     // Subtle contrast, like cards or dividers (dark gray)
-  backgroundModal: '#000000',         // Modal backgrounds (black)
+  backgroundPrimary: DS_COLORS.background.primary,       // Blanc principal
+  backgroundSecondary: DS_COLORS.background.secondary,   // Gris très clair
+  backgroundModal: DS_COLORS.background.primary,         // Blanc pour modals
 
   // Text
-  textPrimary: '#FFFFFF',             // Primary text (white)
-  textSecondary: '#AAAAAA',           // Lighter text for less emphasis (light gray)
-  textOnPrimaryButton: '#000000',     // Text on light buttons (black on white)
-  textOnLightBackground: '#FFFFFF',   // General text on dark backgrounds (white)
-  textPlaceholder: '#666666',         // Placeholder text in inputs (medium gray)
-  textLink: '#FFFFFF',                // Links can be white, relying on underline or context
+  textPrimary: DS_COLORS.text.primary,                   // Texte principal (presque noir)
+  textSecondary: DS_COLORS.text.secondary,               // Texte secondaire (gris)
+  textOnPrimaryButton: DS_COLORS.text.white,             // Texte blanc sur boutons bleus
+  textOnLightBackground: DS_COLORS.text.primary,         // Texte sur fond clair
+  textPlaceholder: DS_COLORS.text.disabled,              // Placeholder gris
+  textLink: DS_COLORS.text.link,                         // Liens bleus
 
   // Borders & Dividers
-  borderPrimary: '#333333',           // Dark borders
-  borderInput: '#444444',             // Input field borders
+  borderPrimary: DS_COLORS.border.light,                 // Bordures claires
+  borderInput: DS_COLORS.border.medium,                  // Bordures d'inputs
 
   // Icons
-  iconPrimary: '#FFFFFF',             // Main icons (white)
-  iconSecondary: '#AAAAAA',           // Less prominent icons (light gray)
+  iconPrimary: DS_COLORS.icon.primary,                   // Icônes principales
+  iconSecondary: DS_COLORS.icon.secondary,               // Icônes secondaires
 
   // Buttons & Interactive Elements
-  buttonBackgroundPrimary: '#FFFFFF', // Primary buttons (white background)
-  buttonBackgroundSecondary: '#181818',// Secondary/ghost buttons (dark gray background)
-  buttonTextPrimary: '#000000',       // Text on primary (white) buttons
-  buttonTextSecondary: '#FFFFFF',     // Text on secondary (dark gray) buttons
-  
+  buttonBackgroundPrimary: DS_COLORS.primary.main,       // Boutons bleus
+  buttonBackgroundSecondary: DS_COLORS.background.tertiary, // Boutons secondaires gris
+  buttonTextPrimary: DS_COLORS.text.white,               // Texte blanc sur bleu
+  buttonTextSecondary: DS_COLORS.text.primary,           // Texte foncé sur gris
+
   // States
-  error: '#FF6B6B',                   // Slightly softer red for dark theme
-  errorBackground: '#2D1B1B',         // Dark red background for error states
-  errorText: '#FF6B6B',               // Red text for errors
-  success: '#4CAF50',                 // Keep green for success
-  successBackground: '#1B2D1B',       // Dark green background for success states
-  successText: '#4CAF50',             // Green text for success
-  warning: '#FFC107',                 // Warning/info color (amber)
-  warningBackground: 'rgba(255, 193, 7, 0.1)', // Warning background
-  disabled: '#555555',                // For disabled elements
+  error: DS_COLORS.error,
+  errorBackground: '#FEE2E2',                            // Fond rouge clair
+  errorText: DS_COLORS.error,
+  success: DS_COLORS.success,
+  successBackground: '#D1FAE5',                          // Fond vert clair
+  successText: DS_COLORS.success,
+  warning: DS_COLORS.warning,
+  warningBackground: '#FEF3C7',                          // Fond orange clair
+  disabled: DS_COLORS.text.disabled,
 
   // Specific UI elements
-  tabBarBackground: '#000000',
-  tabBarActiveTint: '#FFFFFF',
-  tabBarInactiveTint: '#AAAAAA',
+  tabBarBackground: DS_COLORS.background.primary,
+  tabBarActiveTint: DS_COLORS.primary.main,              // Bleu pour l'onglet actif
+  tabBarInactiveTint: DS_COLORS.icon.secondary,          // Gris pour inactif
 
-  headerBackground: '#000000',
-  headerText: '#FFFFFF',
+  headerBackground: DS_COLORS.background.primary,
+  headerText: DS_COLORS.text.primary,
 
-  // You can add more as we go through the components
-} as const; 
+  // Alias directs (compat) — primaire de marque + fond tertiaire
+  primary: DS_COLORS.primary.main,                       // lydia-tiber #05403E
+  primaryLight: DS_COLORS.primary.light,
+  primaryDark: DS_COLORS.primary.dark,
+  backgroundTertiary: DS_COLORS.background.tertiary,
+} as const;

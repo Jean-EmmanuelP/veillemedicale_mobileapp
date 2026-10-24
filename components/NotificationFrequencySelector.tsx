@@ -9,6 +9,7 @@ import {
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetFlatList } from '@gorhom/bottom-sheet';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { FONTS } from '../assets/constants/fonts';
+import { COLORS } from '../assets/design-system/colors';
 
 export interface NotificationOption {
   value: string;
@@ -73,7 +74,7 @@ export default function NotificationFrequencySelector({
         {item.label}
       </Text>
       {value === item.value && (
-        <MaterialIcons name="check" size={20} color="#2196F3" />
+        <MaterialIcons name="check" size={20} color={COLORS.text.white} />
       )}
     </TouchableOpacity>
   ), [value, handleSelect]);
@@ -89,7 +90,7 @@ export default function NotificationFrequencySelector({
           <Text style={styles.toggleValue}>
             {selectedOption?.label || placeholder}
           </Text>
-          <MaterialIcons name="keyboard-arrow-right" size={20} color="#919191" />
+          <MaterialIcons name="keyboard-arrow-right" size={20} color={COLORS.icon.secondary} />
         </View>
       </TouchableOpacity>
 
@@ -106,7 +107,7 @@ export default function NotificationFrequencySelector({
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{title}</Text>
             <TouchableOpacity onPress={() => bottomSheetModalRef.current?.close()}>
-              <MaterialIcons name="close" size={24} color="#fff" />
+              <MaterialIcons name="close" size={24} color={COLORS.text.primary} />
             </TouchableOpacity>
           </View>
         </BottomSheetView>
@@ -124,16 +125,16 @@ export default function NotificationFrequencySelector({
 
 const styles = StyleSheet.create({
   toggleOption: {
-    backgroundColor: "#000",
-    borderRadius: 15,
+    backgroundColor: COLORS.background.primary,
+    borderRadius: 0,
     borderWidth: 0.5,
-    borderColor: "#919191",
+    borderColor: COLORS.border.light,
     paddingVertical: 15,
     paddingHorizontal: 10,
     marginBottom: 10,
   },
   toggleLabel: {
-    color: "#fff",
+    color: COLORS.text.primary,
     fontSize: 14,
     fontWeight: "500",
     marginBottom: 5,
@@ -144,20 +145,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   toggleValue: {
-    color: "#fff",
+    color: COLORS.text.secondary,
     fontSize: 14,
     fontWeight: "500",
   },
   modalBackground: {
-    backgroundColor: "#111",
+    backgroundColor: COLORS.background.primary,
   },
   handleStyle: {
-    backgroundColor: "#111",
+    backgroundColor: COLORS.background.primary,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
   handleIndicator: {
-    backgroundColor: "#919191",
+    backgroundColor: COLORS.border.medium,
     width: 40,
   },
   modalContent: {
@@ -172,7 +173,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   modalTitle: {
-    color: "#fff",
+    color: COLORS.text.primary,
     fontSize: 20,
     fontWeight: "bold",
     fontFamily: FONTS.sans.regular,
@@ -187,22 +188,22 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 12,
     marginVertical: 4,
-    borderRadius: 12,
-    backgroundColor: "#000",
+    borderRadius: 0,
+    backgroundColor: COLORS.background.secondary,
     borderWidth: 0.5,
-    borderColor: "#919191",
+    borderColor: COLORS.border.light,
   },
   modalOptionSelected: {
-    backgroundColor: "#2196F3",
-    borderColor: "#2196F3",
+    backgroundColor: COLORS.primary.main,
+    borderColor: COLORS.primary.main,
   },
   modalOptionText: {
-    color: "#fff",
+    color: COLORS.text.primary,
     fontSize: 16,
     fontWeight: "500",
     fontFamily: FONTS.sans.regular,
   },
   modalOptionTextSelected: {
-    color: "#fff",
+    color: COLORS.text.white,
   },
 }); 

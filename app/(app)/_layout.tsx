@@ -1,37 +1,13 @@
 import { Tabs } from 'expo-router';
-import { FontAwesome } from '@expo/vector-icons';
-import { COLORS } from '../../assets/constants/colors';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../../assets/design-system';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { fetchProfile } from '../../store/profileSlice';
-import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import GuestAccountModal from '../../components/GuestAccountModal';
-
-// Composant pour l'effet glassmorphism de la bottom navigation
-const MenuBlur = () => {
-  return (
-    <View style={{ flex: 1 }}>
-      <View
-        style={{
-          width: '100%',
-          height: '100%',
-        }}
-      >
-        <BlurView
-          intensity={15}
-          tint="dark"
-          style={{ 
-            flex: 1, 
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          }}
-        />
-      </View>
-    </View>
-  );
-};
+import AnimatedTabBar from '../../components/AnimatedTabBar';
 
 export default function AppLayout() {
   const dispatch = useDispatch();
@@ -83,51 +59,84 @@ export default function AppLayout() {
   return (
     <>
       <Tabs
+        tabBar={(props) => <AnimatedTabBar {...props} />}
         screenOptions={{
           headerShown: false,
-          tabBarShowLabel: true,
-          tabBarStyle: {
-            position: 'absolute',
-            bottom: 0,
-            left: 20,
-            right: 20,
-            backgroundColor: 'transparent',
-            borderTopWidth: 0,
-            borderRadius: 20,
-            height: Dimensions.get('window').height * 0.1,
-            paddingBottom: 10,
-            paddingTop: 10,
-            elevation: 10, // Shadow pour Android
-            shadowColor: '#000', // Shadow pour iOS
-            shadowOffset: { width: 0, height: 5 },
-            shadowOpacity: 0.3,
-            shadowRadius: 10,
-          },
-          tabBarActiveTintColor: COLORS.tabBarActiveTint,
-          tabBarInactiveTintColor: COLORS.tabBarInactiveTint,
-          tabBarBackground: () => <MenuBlur />,
-          tabBarLabelStyle: {
-            fontSize: 10,
-            fontWeight: '500',
-            marginTop: 2,
-          },
+          tabBarActiveTintColor: COLORS.primary.main,
+          tabBarInactiveTintColor: COLORS.icon.secondary,
         }}
       >
         <Tabs.Screen
           name="index"
           options={{
             title: 'Articles',
-            tabBarIcon: ({ color }) => (
-              <FontAwesome name="newspaper-o" size={20} color={color} />
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? "newspaper" : "newspaper-outline"}
+                size={20}
+                color={color}
+              />
             ),
           }}
         />
         <Tabs.Screen
+          name="discussions"
+          options={{
+            title: 'Communauté',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? 'people' : 'people-outline'}
+                size={20}
+                color={color}
+              />
+            ),
+          }}
+          listeners={{
+            tabPress: (e) => {
+              if (isAnonymous) {
+                e.preventDefault();
+                setGuestModalFeature('Communauté');
+                setShowGuestModal(true);
+              }
+            },
+          }}
+        />
+        <Tabs.Screen
+          name="messagerie"
+          options={{
+            title: 'Messagerie',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
+                size={20}
+                color={color}
+              />
+            ),
+          }}
+          listeners={{
+            tabPress: (e) => {
+              if (isAnonymous) {
+                e.preventDefault();
+                setGuestModalFeature('Messagerie');
+                setShowGuestModal(true);
+              }
+            },
+          }}
+        />
+        {/* Routes techniques cachées — accessibles via /messagerie ou deep-link. */}
+        <Tabs.Screen name="live-chat" options={{ href: null }} />
+        <Tabs.Screen name="messages" options={{ href: null }} />
+        <Tabs.Screen name="u" options={{ href: null }} />
+        <Tabs.Screen
           name="my-articles"
           options={{
-            title: 'Mes Articles',
-            tabBarIcon: ({ color }) => (
-              <FontAwesome name="book" size={20} color={color} />
+            title: 'Mes articles',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? "bookmark" : "bookmark-outline"}
+                size={20}
+                color={color}
+              />
             ),
           }}
           listeners={{
@@ -146,8 +155,12 @@ export default function AppLayout() {
           name="favorites"
           options={{
             title: 'Favoris',
-            tabBarIcon: ({ color }) => (
-              <FontAwesome name="heart" size={20} color={color} />
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? "heart" : "heart-outline"}
+                size={20}
+                color={color}
+              />
             ),
           }}
           listeners={{
@@ -173,4 +186,4 @@ export default function AppLayout() {
       />
     </>
   );
-} 
+}

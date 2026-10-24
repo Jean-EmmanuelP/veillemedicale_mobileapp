@@ -15,7 +15,8 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import 'react-native-url-polyfill/auto';
 
-// Auth mobile = 100% Convex. Le legacy `SupabaseAuthBootstrap` a été retiré ici
+// Auth mobile = Convex Auth (data encore partiellement Supabase, cf.
+// docs/SUPABASE_REMOVAL_PLAN.md). Le legacy `SupabaseAuthBootstrap` a été retiré ici
 // (voir `lib/authConfig.ts` pour le contexte). Toute la logique auth passe par
 // `<ConvexAuthProvider>` + `<ConvexAuthBridge/>` ci-dessous.
 import { AUTH_CONVEX_ENABLED } from '../lib/authConfig';
@@ -125,7 +126,7 @@ function NavigationLayout() {
   const { user } = useSelector((state: RootState) => state.auth);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // App = 100 % Convex → on considère l'app initialisée dès que le provider a
+  // Auth Convex → on considère l'app initialisée dès que le provider a
   // eu le temps de rehydrate. Le bridge Convex s'occupe de la session en
   // arrière-plan.
   useEffect(() => {
@@ -174,7 +175,7 @@ export default function RootLayout() {
   // Supabase Auth ici — le boot n'a plus le `SupabaseAuthBootstrap`).
   if (!AUTH_CONVEX_ENABLED) {
     console.error(
-      '[RootLayout] AUTH_CONVEX_ENABLED=false détecté — le mobile est censé être 100% Convex. ' +
+      '[RootLayout] AUTH_CONVEX_ENABLED=false détecté — le mobile est censé utiliser Convex Auth. ' +
       'Ce build ne va pas booter correctement (pas de bootstrap Supabase legacy).'
     );
   }

@@ -5,8 +5,10 @@
  * pour la migration Supabase Auth → Convex Auth (Phase 4). Un rollout canary était
  * prévu par binary EAS.
  *
- * Décision finale : l'app mobile est **100 % Convex** (auth ET data via `convex/react`).
- * Le chemin Supabase Auth legacy (`SupabaseAuthBootstrap`) est mort code.
+ * Décision finale : l'auth mobile passe par Convex Auth. Le chemin Supabase Auth
+ * legacy (`SupabaseAuthBootstrap`) a été retiré. ⚠️ Des usages Supabase subsistent
+ * (session anonyme, inscription, reset password, articles, likes/lus, notifications,
+ * edge functions) — cf. `docs/SUPABASE_REMOVAL_PLAN.md`.
  *
  * On hardcode `true` pour :
  *   1. Empêcher un fallback accidentel sur le legacy si l'env var manque au build.

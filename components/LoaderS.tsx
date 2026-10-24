@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { View, Animated, Text, StyleSheet, Easing } from "react-native";
 
-export default function LoaderS({ visible, overlayColor = "rgba(0,0,0,0.7)", size = 60 }) {
+export default function LoaderS({ visible, overlayColor = "rgba(0,0,0,0.7)", size = 60 }: { visible: boolean; overlayColor?: string; size?: number }) {
   const loaderAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {

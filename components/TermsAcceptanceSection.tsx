@@ -8,6 +8,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS } from '../assets/constants/fonts';
+import { COLORS } from '../assets/design-system/colors';
 
 interface TermsAcceptanceSectionProps {
   accepted: boolean;
@@ -77,7 +78,7 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     borderTopWidth: 0.3,
     borderBottomWidth: 0.3,
-    borderColor: "#919191",
+    borderColor: COLORS.border.light,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -86,27 +87,27 @@ const styles = StyleSheet.create({
   checkbox: {
     width: 20,
     height: 20,
-    borderRadius: 10,
+    borderRadius: 0,
     borderWidth: 1,
-    borderColor: "#bdbbbb",
+    borderColor: COLORS.border.medium,
     justifyContent: "center",
-    backgroundColor: "gray",
+    backgroundColor: COLORS.border.medium,
     alignItems: "center",
     marginRight: 10,
   },
   checkboxSelected: {
-    backgroundColor: "#616060",
-    borderColor: "#919191",
+    backgroundColor: COLORS.primary.main,
+    borderColor: COLORS.primary.main,
   },
   termsTextContainer: {
     flex: 1,
   },
   termsText: {
-    color: "#fff",
+    color: COLORS.text.secondary,
     fontSize: 14,
     fontFamily: FONTS.sans.regular,
   },
   termsLink: {
-    color: "#2196F3",
+    color: "#05403E",
   },
 }); 

@@ -17,6 +17,8 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import { supabase } from '../lib/supabase';
+import { useQuery } from 'convex/react';
+import { api } from '../lib/convex';
 import { Article } from '../types';
 import { FONTS, FONT_SIZES, LINE_HEIGHTS } from '../assets/constants/fonts';
 import { COLORS } from '../assets/constants/colors';
@@ -28,6 +30,16 @@ export default function ArticleDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ articleId: string }>();
   const { user } = useAppSelector((state) => state.auth);
+
+  // Lecture LIVE depuis Convex (compteurs temps réel) — wrapped try/catch, repli Supabase si module absent.
+  let liveDetail: any = undefined;
+  try {
+    liveDetail = useQuery(
+      (api as any).articles?.getArticleDetailFor,
+      params.articleId ? { legacyId: Number(params.articleId) } : 'skip'
+    );
+  } catch { /* silencieux — repli sur Supabase state via useEffect */ }
+  const liveArticle = liveDetail?.article;
 
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
@@ -388,7 +400,7 @@ export default function ArticleDetailScreen() {
                 size={16}
                 color={article.is_liked ? COLORS.iconPrimary : COLORS.iconSecondary}
               />
-              <Text style={styles.statText}>{article.like_count}</Text>
+              <Text style={styles.statText}>{liveArticle?.like_count ?? article.like_count}</Text>
             </View>
             <View style={styles.statItem}>
               <Ionicons
@@ -396,7 +408,7 @@ export default function ArticleDetailScreen() {
                 size={16}
                 color={article.is_read ? COLORS.iconPrimary : COLORS.iconSecondary}
               />
-              <Text style={styles.statText}>{article.read_count}</Text>
+              <Text style={styles.statText}>{liveArticle?.read_count ?? article.read_count}</Text>
             </View>
             <View style={styles.statItem}>
               <Ionicons
@@ -404,7 +416,7 @@ export default function ArticleDetailScreen() {
                 size={16}
                 color={article.is_thumbed_up ? COLORS.iconPrimary : COLORS.iconSecondary}
               />
-              <Text style={styles.statText}>{article.thumbs_up_count}</Text>
+              <Text style={styles.statText}>{liveArticle?.thumbs_up_count ?? article.thumbs_up_count}</Text>
             </View>
           </View>
 
@@ -608,7 +620,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.buttonBackgroundPrimary,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: 0,
     marginTop: 20,
     marginBottom: 20,
   },
@@ -652,7 +664,7 @@ const styles = StyleSheet.create({
   },
   audioPlayerContainer: {
     backgroundColor: COLORS.backgroundSecondary,
-    borderRadius: 16,
+    borderRadius: 0,
     padding: 16,
     marginVertical: 20,
     ...Platform.select({
@@ -711,14 +723,14 @@ const styles = StyleSheet.create({
   progressBar: {
     height: 4,
     backgroundColor: COLORS.borderPrimary,
-    borderRadius: 2,
+    borderRadius: 0,
     overflow: 'hidden',
     marginBottom: 6,
   } as ViewStyle,
   progressFill: {
     height: '100%',
     backgroundColor: COLORS.iconPrimary,
-    borderRadius: 2,
+    borderRadius: 0,
   } as ViewStyle,
   timeContainer: {
     flexDirection: 'row',
@@ -736,7 +748,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     backgroundColor: COLORS.warningBackground,
-    borderRadius: 4,
+    borderRadius: 0,
     alignSelf: 'flex-start',
   } as ViewStyle,
   scrollWarningText: {

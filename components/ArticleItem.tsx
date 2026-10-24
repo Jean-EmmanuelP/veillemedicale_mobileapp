@@ -110,7 +110,7 @@ export default function ArticleItem({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.backgroundPrimary,
-    borderRadius: 12,
+    borderRadius: 0,
     marginHorizontal: 16,
     marginVertical: 8,
     borderWidth: 1,
@@ -173,9 +173,12 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+    minWidth: 40,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 6,
+    borderRadius: 0,
     marginRight: 8,
   } as ViewStyle,
   actionButtonActive: {

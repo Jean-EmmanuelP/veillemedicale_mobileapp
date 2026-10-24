@@ -125,12 +125,13 @@ export const fetchProfile = createAsyncThunk(
       email: userProfile.email,
     });
 
-    // ─── 2. Disciplines + subscriptions + grades — 100% Convex ──────────────
+    // ─── 2. Disciplines + subscriptions + grades — lecture Convex ───────────
     // Migration finale 2026-07-03 : les 3 dernières tables Supabase (disciplines,
     // user_subscriptions, user_grade_preferences) sont maintenant servies par
     // Convex via `getMobileProfileRelations` (query combinée = 1 seul RTT).
     //
-    // Le mobile est désormais 100% Convex — plus aucune référence Supabase active.
+    // ⚠️ Les ÉCRITURES (updateProfile ci-dessous) passent encore par Supabase,
+    // cf. docs/SUPABASE_REMOVAL_PLAN.md.
     const relations = await withTimeout(
       convex.query(api.articles.getMobileProfileRelations, { userId }),
       FETCH_TIMEOUT_MS,

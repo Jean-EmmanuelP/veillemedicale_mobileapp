@@ -29,6 +29,7 @@ interface ArticleModalProps {
   visible: boolean;
   article: Article | null;
   onClose: () => void;
+  onLinkPress?: (link: string) => void;
   dispatch?: any;
   userId?: string;
 }
@@ -647,7 +648,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.buttonBackgroundPrimary,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: 0,
     marginTop: 20,
     marginBottom: 20,
   },
@@ -711,7 +712,7 @@ const styles = StyleSheet.create({
   // Audio Player Styles
   audioPlayerContainer: {
     backgroundColor: COLORS.backgroundSecondary,
-    borderRadius: 16,
+    borderRadius: 0,
     padding: 16,
     marginVertical: 20,
     ...Platform.select({
@@ -770,14 +771,14 @@ const styles = StyleSheet.create({
   progressBar: {
     height: 4,
     backgroundColor: COLORS.borderPrimary,
-    borderRadius: 2,
+    borderRadius: 0,
     overflow: 'hidden',
     marginBottom: 6,
   } as ViewStyle,
   progressFill: {
     height: '100%',
     backgroundColor: COLORS.iconPrimary,
-    borderRadius: 2,
+    borderRadius: 0,
   } as ViewStyle,
   timeContainer: {
     flexDirection: 'row',
@@ -795,7 +796,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     backgroundColor: COLORS.warningBackground,
-    borderRadius: 4,
+    borderRadius: 0,
     alignSelf: 'flex-start',
   } as ViewStyle,
   scrollWarningText: {
@@ -809,7 +810,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.backgroundSecondary,
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 16,
     marginVertical: 20,
     opacity: 0.6,

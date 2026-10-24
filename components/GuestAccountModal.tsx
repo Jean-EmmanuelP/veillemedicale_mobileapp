@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   modal: {
     backgroundColor: COLORS.backgroundPrimary,
-    borderRadius: 20,
+    borderRadius: 0,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 0,
     backgroundColor: COLORS.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -163,21 +163,21 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   title: {
     fontSize: FONT_SIZES.xl,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.sans.bold,
     color: COLORS.textPrimary,
     textAlign: 'center',
     marginBottom: 8,
   } as TextStyle,
   subtitle: {
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.sans.medium,
     color: COLORS.primary,
     textAlign: 'center',
     marginBottom: 20,
   } as TextStyle,
   description: {
     fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.sans.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
     marginBottom: 20,
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   benefitText: {
     fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.sans.regular,
     color: COLORS.textPrimary,
     marginLeft: 12,
     flex: 1,
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     paddingHorizontal: 24,
-    borderRadius: 12,
+    borderRadius: 0,
     marginBottom: 12,
     shadowColor: COLORS.primary,
     shadowOffset: {
@@ -226,21 +226,21 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   primaryButtonText: {
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.sans.bold,
     color: '#FFFFFF',
   } as TextStyle,
   secondaryButton: {
     backgroundColor: 'transparent',
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 12,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: COLORS.borderPrimary,
     alignItems: 'center',
   } as ViewStyle,
   secondaryButtonText: {
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.sans.medium,
     color: COLORS.textSecondary,
   } as TextStyle,
 }); 

@@ -22,12 +22,26 @@ import { Article } from '../../types';
 import { FONTS, FONT_SIZES } from '../../assets/constants/fonts';
 import { COLORS } from '../../assets/constants/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQuery } from 'convex/react';
+import { api } from '../../lib/convex';
 
 export default function FavoritesScreen() {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const { user, isAnonymous } = useAppSelector((state) => state.auth);
   const { likedArticles, loadingLikedArticles, errorLikedArticles } = useAppSelector((state) => state.articles);
+
+  // Lecture LIVE des favoris depuis Convex — wrapped try/catch pour retomber sur Redux
+  // si la query Convex n'est pas dispo (module absent en prod).
+  let likedQuery: any = undefined;
+  try {
+    likedQuery = useQuery(
+      (api as any).articles?.getLikedFeed,
+      user?.id && !isAnonymous ? { userId: user.id } : 'skip'
+    );
+  } catch { /* silencieux — repli Redux */ }
+  const convexLiked = likedQuery?.data as Article[] | undefined;
+  const displayedLiked: Article[] = convexLiked ?? likedArticles;
   
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -262,7 +276,7 @@ export default function FavoritesScreen() {
       {/* Contenu conditionnel : Loading stylé ou Liste */}
       {(loadingLikedArticles && !refreshing) ? renderLoadingContent() : (
         <FlashList
-          data={likedArticles}
+          data={displayedLiked}
           renderItem={({ item }: { item: Article }) => (
             <ArticleItem
               article={item}
@@ -292,7 +306,7 @@ export default function FavoritesScreen() {
               <Text style={styles.footerLoaderText}>Chargement...</Text>
             </View>
           ) : null}
-          ListEmptyComponent={!loadingLikedArticles && !refreshing && likedArticles.length === 0 ? (
+          ListEmptyComponent={!loadingLikedArticles && !refreshing && displayedLiked.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyTitle}>💝 Aucun favori</Text>
               <Text style={styles.emptyText}>
@@ -382,7 +396,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: 0,
     marginTop: 20,
   } as ViewStyle,
   retryButtonText: {

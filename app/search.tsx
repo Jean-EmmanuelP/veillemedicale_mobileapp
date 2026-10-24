@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
+import { convex, api } from '../lib/convex';
 import { Article } from '../types';
 import ArticleItem from '../components/ArticleItem';
 import ArticleModal from '../components/ArticleModal';
@@ -49,48 +49,23 @@ export default function SearchScreen() {
     const currentOffset = loadMore ? offset : 0;
 
     try {
-      const { data, error } = await supabase.rpc('search_showed_articles_fts', {
-        p_query: query.trim(),
-        p_limit: 20,
-        p_offset: currentOffset,
+      // Recherche via Convex (search index) — l'état user (is_liked/is_read/is_thumbed_up)
+      // est déjà inclus dans les lignes renvoyées ; plus besoin de requêtes par résultat.
+      const res: any = await convex.query(api.articles.getArticlesFeed, {
+        search: query.trim(),
+        userId: user?.id ?? undefined,
+        offset: currentOffset,
       });
-
-      if (error) throw error;
-
-      const articlesWithUserData = await Promise.all(
-        (data || []).map(async (article: any) => {
-          if (!user?.id) {
-            return {
-              ...article,
-              is_liked: false,
-              is_read: false,
-              is_thumbed_up: false,
-            };
-          }
-
-          const [likeCheck, readCheck, thumbsUpCheck] = await Promise.all([
-            supabase.from('article_likes').select('id').eq('article_id', article.article_id).eq('user_id', user.id).maybeSingle(),
-            supabase.from('article_read').select('read_at').eq('article_id', article.article_id).eq('user_id', user.id).maybeSingle(),
-            supabase.from('article_thumbs_up').select('thumbed_up_at').eq('article_id', article.article_id).eq('user_id', user.id).maybeSingle(),
-          ]);
-
-          return {
-            ...article,
-            is_liked: !!likeCheck.data,
-            is_read: !!readCheck.data,
-            is_thumbed_up: !!thumbsUpCheck.data,
-          };
-        })
-      );
+      const rows: any[] = res?.data ?? [];
 
       if (loadMore) {
-        setResults(prev => [...prev, ...articlesWithUserData]);
+        setResults(prev => [...prev, ...rows]);
       } else {
-        setResults(articlesWithUserData);
+        setResults(rows);
       }
 
-      setHasMore((data || []).length === 20);
-      setOffset(loadMore ? currentOffset + 20 : 20);
+      setHasMore(rows.length === 10);
+      setOffset(loadMore ? currentOffset + 10 : 10);
     } catch (error: any) {
       console.error('Search error:', error);
       const errorMessage = error?.message?.includes('network') || error?.message?.includes('fetch')
@@ -231,7 +206,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     backgroundColor: COLORS.backgroundPrimary,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+    borderBottomColor: COLORS.borderPrimary,
   } as ViewStyle,
   backButton: {
     padding: 8,
@@ -241,11 +216,11 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1C1C1C',
-    borderRadius: 12,
+    backgroundColor: COLORS.backgroundSecondary,
+    borderRadius: 0,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderPrimary,
   } as ViewStyle,
   searchIcon: {
     marginRight: 8,
@@ -324,7 +299,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.buttonBackgroundPrimary,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 0,
     marginTop: 20,
   } as ViewStyle,
   retryButtonText: {

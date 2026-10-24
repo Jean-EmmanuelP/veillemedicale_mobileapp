@@ -213,7 +213,7 @@ export default function LinkGuestAccountSection() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="link" size={24} color={COLORS.primary} />
+        <Ionicons name="link" size={24} color={COLORS.buttonBackgroundPrimary} />
         <Text style={styles.title}>Lier votre compte invité</Text>
       </View>
 
@@ -330,7 +330,7 @@ export default function LinkGuestAccountSection() {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.backgroundSecondary,
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 20,
     marginVertical: 10,
   } as ViewStyle,
@@ -341,13 +341,13 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   title: {
     fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.sans.bold,
     color: COLORS.textPrimary,
     marginLeft: 10,
   } as TextStyle,
   description: {
     fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.sans.regular,
     color: COLORS.textSecondary,
     marginBottom: 20,
     lineHeight: LINE_HEIGHTS.sm,
@@ -357,17 +357,17 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   stepTitle: {
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.sans.bold,
     color: COLORS.textPrimary,
     marginBottom: 20,
     textAlign: 'center',
   } as TextStyle,
   input: {
     backgroundColor: COLORS.backgroundPrimary,
-    borderRadius: 8,
+    borderRadius: 0,
     padding: 15,
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.sans.regular,
     color: COLORS.textPrimary,
     borderWidth: 1,
     borderColor: COLORS.borderPrimary,
@@ -383,18 +383,19 @@ const styles = StyleSheet.create({
     padding: 5,
   } as ViewStyle,
   button: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    borderRadius: 0,
     padding: 15,
     alignItems: 'center',
     marginTop: 10,
   } as ViewStyle,
   buttonDisabled: {
-    backgroundColor: COLORS.backgroundTertiary,
+    backgroundColor: COLORS.buttonBackgroundPrimary,
+    opacity: 0.45,
   } as ViewStyle,
   buttonText: {
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.sans.bold,
     color: COLORS.textOnPrimaryButton,
   } as TextStyle,
   loadingContainer: {
@@ -404,11 +405,11 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   loadingText: {
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.sans.medium,
     color: COLORS.textOnPrimaryButton,
   } as TextStyle,
   secondaryButton: {
-    borderRadius: 8,
+    borderRadius: 0,
     padding: 15,
     alignItems: 'center',
     borderWidth: 1,
@@ -417,7 +418,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   secondaryButtonText: {
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.sans.medium,
     color: COLORS.textSecondary,
   } as TextStyle,
   successContainer: {
@@ -426,14 +427,14 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   successTitle: {
     fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.sans.bold,
     color: COLORS.success,
     marginTop: 10,
     marginBottom: 5,
   } as TextStyle,
   successText: {
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.sans.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: LINE_HEIGHTS.base,
@@ -442,14 +443,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 107, 107, 0.1)',
-    borderRadius: 8,
+    borderRadius: 0,
     padding: 12,
     marginTop: 15,
   } as ViewStyle,
   errorText: {
     color: COLORS.error,
     fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.sans.regular,
     marginLeft: 8,
     flex: 1,
   } as TextStyle,
@@ -458,7 +459,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 107, 107, 0.1)',
-    borderRadius: 8,
+    borderRadius: 0,
     padding: 15,
     marginTop: 10,
     borderWidth: 1,
@@ -467,7 +468,7 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     color: COLORS.error,
     fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.sans.medium,
     marginLeft: 8,
   } as TextStyle,
 }); 

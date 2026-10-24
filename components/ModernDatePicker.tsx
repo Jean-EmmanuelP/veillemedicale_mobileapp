@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   },
   dateContainer: {
     backgroundColor: COLORS.backgroundSecondary,
-    borderRadius: 15,
+    borderRadius: 0,
     padding: 20,
     marginBottom: 30,
     alignItems: 'center',
@@ -228,10 +228,10 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   saveButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.buttonBackgroundPrimary,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 0,
   },
   saveButtonDisabled: {
     backgroundColor: COLORS.textSecondary,
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     width: (screenWidth - 80) / 3,
     height: 60,
     backgroundColor: COLORS.backgroundSecondary,
-    borderRadius: 15,
+    borderRadius: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },

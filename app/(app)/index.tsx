@@ -16,6 +16,7 @@ import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { hideTabBar, showTabBar } from '../../store/uiSlice';
 import { 
   fetchArticles, 
   fetchAllDisciplinesStructure,
@@ -99,6 +100,7 @@ export default function ArticlesScreen() {
           duration: 300,
           useNativeDriver: true,
         }).start();
+        dispatch(hideTabBar());
       }
     } else if (newDirection === 'up' && diff < -50) {
       // Require stronger upward scroll to show header
@@ -109,11 +111,17 @@ export default function ArticlesScreen() {
           duration: 300,
           useNativeDriver: true,
         }).start();
+        dispatch(showTabBar());
       }
     }
 
+    // Always show tab bar near the very top
+    if (currentScrollY < 20) {
+      dispatch(showTabBar());
+    }
+
     lastScrollY.current = currentScrollY;
-  }, [headerTranslateY, HEADER_HEIGHT]);
+  }, [headerTranslateY, HEADER_HEIGHT, dispatch]);
 
   const allowedGrades = useMemo(() => {
     if (!selectedGrade || selectedGrade === 'all') return null;

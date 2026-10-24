@@ -6,6 +6,7 @@ import devToolsEnhancer from 'redux-devtools-expo-dev-plugin';
 import authReducer from './authSlice';
 import articlesReducer from './articlesSlice';
 import profileReducer from './profileSlice';
+import uiReducer from './uiSlice';
 
 const persistConfig = {
   key: 'root',
@@ -17,6 +18,7 @@ const rootReducer = combineReducers({
   auth: authReducer,
   articles: articlesReducer,
   profile: profileReducer,
+  ui: uiReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

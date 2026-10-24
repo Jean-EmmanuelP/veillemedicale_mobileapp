@@ -10,6 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { FONTS } from '../../../assets/constants/fonts';
+import { COLORS } from '../../../assets/design-system/colors';
 
 // i18n strings - will be moved to proper i18n later
 const strings = {
@@ -61,7 +62,7 @@ export default function PrivacyPolicyScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <MaterialIcons name="keyboard-arrow-left" size={24} color="#fff" style={{ transform: [{ translateX: -5 }, { translateY: -3 }] }} />
+          <MaterialIcons name="keyboard-arrow-left" size={24} color={COLORS.primary.main} style={{ transform: [{ translateX: -5 }, { translateY: -3 }] }} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sano</Text>
         <View style={styles.headerSpacer} />
@@ -111,7 +112,7 @@ export default function PrivacyPolicyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#111",
+    backgroundColor: COLORS.background.primary,
   },
   header: {
     flexDirection: "row",
@@ -119,14 +120,14 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 18,
     paddingHorizontal: 18,
-    backgroundColor: "#000",
+    backgroundColor: COLORS.background.primary,
     borderBottomWidth: 0.4,
-    borderColor: "#919191",
+    borderColor: COLORS.border.light,
   },
   backButton: {
     padding: 6,
     borderRadius: 100,
-    borderColor: "grey",
+    borderColor: COLORS.border.medium,
     borderWidth: 0.5,
     width: 30,
     height: 30,
@@ -135,7 +136,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontWeight: "bold",
-    color: "#fff",
+    color: COLORS.text.primary,
     flex: 1,
     textAlign: "center",
     fontSize: 16,
@@ -151,26 +152,26 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   title: {
-    color: "#fff",
+    color: COLORS.text.primary,
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 16,
     fontFamily: FONTS.sans.bold,
   },
   lastUpdated: {
-    color: "#919191",
+    color: COLORS.text.tertiary,
     fontSize: 12,
     marginBottom: 8,
     fontFamily: FONTS.sans.regular,
   },
   effectiveDate: {
-    color: "#fff",
+    color: COLORS.text.primary,
     fontSize: 14,
     marginBottom: 20,
     fontFamily: FONTS.sans.regular,
   },
   sectionTitle: {
-    color: "#fff",
+    color: COLORS.text.primary,
     fontSize: 16,
     fontWeight: "bold",
     marginTop: 20,
@@ -178,7 +179,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sans.bold,
   },
   paragraph: {
-    color: "#fff",
+    color: COLORS.text.primary,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 16,
