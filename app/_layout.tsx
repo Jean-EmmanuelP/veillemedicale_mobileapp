@@ -15,8 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import 'react-native-url-polyfill/auto';
 
-// Auth mobile = Convex Auth (data encore partiellement Supabase, cf.
-// docs/SUPABASE_REMOVAL_PLAN.md). Le legacy `SupabaseAuthBootstrap` a été retiré ici
+// Auth mobile = Convex Auth (data également 100 % Convex). Le legacy `SupabaseAuthBootstrap` a été retiré ici
 // (voir `lib/authConfig.ts` pour le contexte). Toute la logique auth passe par
 // `<ConvexAuthProvider>` + `<ConvexAuthBridge/>` ci-dessous.
 import { AUTH_CONVEX_ENABLED } from '../lib/authConfig';

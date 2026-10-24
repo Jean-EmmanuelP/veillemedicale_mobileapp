@@ -1,17 +1,17 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '../lib/supabase';
 import { convex, api } from '../lib/convex';
 import { Article } from '../types';
 import { RootState } from '../store';
 
-// Miroir Convex (best-effort) : garde l'état user Convex cohérent avec Supabase, pour que
-// les lectures Convex (compteurs/détail) soient justes. Ne bloque jamais l'action Supabase.
-async function mirrorToConvex(fn: any, args: Record<string, any>) {
-  try {
-    await convex.mutation(fn, args);
-  } catch (e) {
-    console.warn('[convex-mirror] échec', e);
-  }
+// Toutes les lectures/écritures passent par Convex. L'utilisateur est celui de la
+// session Convex Auth (JWT) : aucun `userId` n'est envoyé au serveur.
+
+function findArticle(state: RootState, articleId: number): Article | undefined {
+  return (
+    state.articles.items.find(a => a.article_id === articleId) ||
+    state.articles.myArticles.find(a => a.article_id === articleId) ||
+    state.articles.likedArticles.find(a => a.article_id === articleId)
+  );
 }
 
 interface SubDisciplineInfo {
@@ -88,30 +88,11 @@ const initialState: ArticlesState = {
 };
 
 // Fetches only disciplines/sub-disciplines user is subscribed to
-export const fetchUserSubscriptionStructure = createAsyncThunk<DisciplineStructure[], string>(
+export const fetchUserSubscriptionStructure = createAsyncThunk<DisciplineStructure[], string | undefined>(
   'articles/fetchUserSubscriptionStructure',
-  async (userId: string) => {
-    // Source primaire : Convex (déjà trié) ; repli RPC Supabase.
-    try {
-      const rows: any = await convex.query(api.articles.getUserSubscriptionStructureFor, { userId });
-      if (Array.isArray(rows)) return rows as DisciplineStructure[];
-    } catch (e) {
-      console.warn('[convex subs] repli Supabase:', e);
-    }
-    const { data, error } = await supabase.rpc(
-      'get_user_subscription_structure_with_subs',
-      { p_user_id: userId }
-    );
-    if (error) throw error;
-    const structuredData = (data || []).sort((a: DisciplineStructure, b: DisciplineStructure) =>
-      a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' })
-    );
-    structuredData.forEach((d: DisciplineStructure) =>
-      d.subscribed_sub_disciplines?.sort((a, b) =>
-        a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' })
-      )
-    );
-    return structuredData as DisciplineStructure[];
+  async () => {
+    const rows: any = await convex.query(api.articles.getUserSubscriptionStructureFor, {});
+    return (Array.isArray(rows) ? rows : []) as DisciplineStructure[];
   }
 );
 
@@ -125,22 +106,10 @@ export const fetchAllDisciplinesStructure = createAsyncThunk<DisciplineStructure
       return state.articles.allDisciplines;
     }
 
-    // Source primaire : Convex (getDisciplineMap renvoie [{id, name}]). Repli Supabase.
-    try {
-      const rows: any = await convex.query(api.articles.getDisciplineMap, {});
-      const sorted = (rows ?? [])
-        .slice()
-        .sort((a: any, b: any) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
-      if (sorted.length > 0) return sorted as DisciplineStructure[];
-    } catch (e) {
-      console.warn('[convex disciplines] repli Supabase:', e);
-    }
-    const { data, error } = await supabase
-      .from('disciplines')
-      .select('id, name')
-      .order('name', { ascending: true });
-    if (error) throw error;
-    return (data || []) as DisciplineStructure[];
+    const rows: any = await convex.query(api.articles.getDisciplineMap, {});
+    return (rows ?? [])
+      .slice()
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' })) as DisciplineStructure[];
   }
 );
 
@@ -153,41 +122,20 @@ export const fetchSubDisciplinesForFilter = createAsyncThunk<
   async (disciplineId, { rejectWithValue }) => {
     if (!disciplineId) return [];
 
-    // Source primaire : Convex (getSubDisciplinesById) ; repli Supabase.
     try {
       const rows: any = await convex.query(api.articles.getSubDisciplinesById, { disciplineId });
-      if (Array.isArray(rows)) return rows as SubDisciplineInfo[];
-    } catch (e) {
-      console.warn('[convex sub-disciplines] repli Supabase:', e);
-    }
-    try {
-      const { data, error } = await supabase
-        .from('sub_disciplines')
-        .select('id, name')
-        .eq('discipline_id', disciplineId)
-        .order('name', { ascending: true });
-
-      if (error) throw rejectWithValue(error.message);
-
-      return data || [];
+      return (Array.isArray(rows) ? rows : []) as SubDisciplineInfo[];
     } catch (e: any) {
       return rejectWithValue(e.message);
     }
   }
 );
 
-export const fetchSavedArticles = createAsyncThunk<number[], string>(
+export const fetchSavedArticles = createAsyncThunk<number[], string | undefined>(
   'articles/fetchSavedArticles',
-  async (userId: string) => {
-    const { data: savedArticlesData, error: savedArticlesError } = await supabase
-      .from('saved_articles')
-      .select('article_id')
-      .eq('user_id', userId);
-
-    if (savedArticlesError) throw savedArticlesError;
-
-    const savedArticleIds = savedArticlesData?.map((saved) => saved.article_id) || [];
-    return savedArticleIds;
+  async () => {
+    const ids: any = await convex.query(api.interactions.getSavedArticlesFor, {});
+    return (Array.isArray(ids) ? ids : []) as number[];
   }
 );
 
@@ -206,7 +154,6 @@ export const fetchArticles = createAsyncThunk<
         offset?: number; 
         refresh?: boolean; 
         filterByUserSubs?: boolean; 
-        userId?: string | null; 
         searchTerm?: string | null; 
         subDiscipline?: string | null; 
         onlyRecommendations?: boolean;
@@ -215,39 +162,15 @@ export const fetchArticles = createAsyncThunk<
 >(
   'articles/fetchArticles',
   async (args) => {
-    let rows: any[] = [];
-    // Source primaire : Convex (feed migré). Repli sur la RPC Supabase si Convex échoue,
-    // pour ne jamais casser le feed. Même forme de lignes (article_id, title, …).
-    try {
-      const res: any = await convex.query(api.articles.getArticlesFeed, {
-        disciplineName: args.discipline === 'all' ? undefined : args.discipline,
-        subDisciplineName: args.subDiscipline ?? undefined,
-        offset: args.offset ?? 0,
-        userId: args.userId ?? undefined,
-        filterByUserSubs: args.filterByUserSubs ?? false,
-        search: args.searchTerm ?? undefined,
-        onlyRecommandations: args.onlyRecommendations ?? false,
-      });
-      rows = res?.data ?? [];
-    } catch (e) {
-      console.warn('[convex feed] échec, repli RPC Supabase:', e);
-      const rpcParams: any = {
-        p_discipline_name: args.discipline === 'all' ? null : args.discipline,
-        p_sub_discipline_name: args.subDiscipline,
-        p_offset: args.offset ?? 0,
-        p_user_id: args.userId ?? null,
-        p_filter_by_user_subs: args.filterByUserSubs ?? false,
-        p_search_term: args.searchTerm ?? null,
-        p_only_recommendations: args.onlyRecommendations ?? false,
-        p_allowed_grades: args.allowedGrades ?? null,
-      };
-      const { data, error } = await supabase.rpc('get_all_articles_sub_disciplines', rpcParams);
-      if (error) {
-        console.error('Error loading articles from RPC:', JSON.stringify(error));
-        throw error;
-      }
-      rows = data || [];
-    }
+    const res: any = await convex.query(api.articles.getArticlesFeed, {
+      disciplineName: args.discipline === 'all' ? undefined : args.discipline,
+      subDisciplineName: args.subDiscipline ?? undefined,
+      offset: args.offset ?? 0,
+      filterByUserSubs: args.filterByUserSubs ?? false,
+      search: args.searchTerm ?? undefined,
+      onlyRecommandations: args.onlyRecommendations ?? false,
+    });
+    const rows: any[] = res?.data ?? [];
     return {
         data: rows,
         refresh: args.refresh || false,
@@ -259,30 +182,11 @@ export const fetchArticles = createAsyncThunk<
 
 export const toggleLike = createAsyncThunk(
   'articles/toggleLike',
-  async ({ articleId, userId }: { articleId: number; userId: string }, { getState }) => {
-    const state = getState() as RootState;
-
-    if (state.auth.isAnonymous) {
-      throw new Error('Anonymous users cannot like articles');
-    }
-
-    const articleFromItems = state.articles.items.find(a => a.article_id === articleId);
-    const articleFromMyArticles = state.articles.myArticles.find(a => a.article_id === articleId);
-    const articleFromLiked = state.articles.likedArticles.find(a => a.article_id === articleId);
-    const article = articleFromItems || articleFromMyArticles || articleFromLiked;
+  async ({ articleId }: { articleId: number }, { getState }) => {
+    const article = findArticle(getState() as RootState, articleId);
     if (!article) throw new Error('Article not found');
 
-    let opError;
-    if (article.is_liked) {
-      const { error } = await supabase.from('article_likes').delete().eq('user_id', userId).eq('article_id', articleId);
-      opError = error;
-    } else {
-      const { error } = await supabase.from('article_likes').insert({ article_id: articleId, user_id: userId });
-      opError = error;
-    }
-    if (opError) throw opError;
-
-    await mirrorToConvex(api.interactions.setLikeFor, { userId, articleId, liked: !article.is_liked });
+    await convex.mutation(api.interactions.setLikeFor, { articleId, liked: !article.is_liked });
 
     const newLikeCount = article.is_liked ? article.like_count - 1 : article.like_count + 1;
     return { articleId, isLiked: !article.is_liked, likeCount: newLikeCount };
@@ -291,33 +195,11 @@ export const toggleLike = createAsyncThunk(
 
 export const toggleRead = createAsyncThunk(
   'articles/toggleRead',
-  async ({ articleId, userId }: { articleId: number; userId: string }, { getState }) => {
-    const state = getState() as RootState;
-
-    if (state.auth.isAnonymous) {
-      throw new Error('Anonymous users cannot mark articles as read');
-    }
-
-    const articleFromItems = state.articles.items.find(a => a.article_id === articleId);
-    const articleFromMyArticles = state.articles.myArticles.find(a => a.article_id === articleId);
-    const articleFromLiked = state.articles.likedArticles.find(a => a.article_id === articleId);
-    const article = articleFromItems || articleFromMyArticles || articleFromLiked;
+  async ({ articleId }: { articleId: number }, { getState }) => {
+    const article = findArticle(getState() as RootState, articleId);
     if (!article) throw new Error('Article not found');
 
-    let opError;
-    if (article.is_read) {
-      const { error } = await supabase.from('article_read').delete().eq('user_id', userId).eq('article_id', articleId);
-      opError = error;
-    } else {
-      const { error } = await supabase.from('article_read').upsert({ article_id: articleId, user_id: userId }, { ignoreDuplicates: true });
-      opError = error;
-    }
-    if (opError) throw opError;
-
-    // Convex n'a que markReadFor (idempotent, sens "lu") — on mirror la mise en "lu".
-    if (!article.is_read) {
-      await mirrorToConvex(api.interactions.markReadFor, { userId, articleId });
-    }
+    await convex.mutation(api.interactions.setReadFor, { articleId, read: !article.is_read });
 
     const newReadCount = article.is_read ? article.read_count - 1 : article.read_count + 1;
     return { articleId, isRead: !article.is_read, readCount: newReadCount };
@@ -326,30 +208,11 @@ export const toggleRead = createAsyncThunk(
 
 export const toggleThumbsUp = createAsyncThunk(
   'articles/toggleThumbsUp',
-  async ({ articleId, userId }: { articleId: number; userId: string }, { getState }) => {
-    const state = getState() as RootState;
-
-    if (state.auth.isAnonymous) {
-      throw new Error('Anonymous users cannot give thumbs up');
-    }
-
-    const articleFromItems = state.articles.items.find(a => a.article_id === articleId);
-    const articleFromMyArticles = state.articles.myArticles.find(a => a.article_id === articleId);
-    const articleFromLiked = state.articles.likedArticles.find(a => a.article_id === articleId);
-    const article = articleFromItems || articleFromMyArticles || articleFromLiked;
-
-    let opError;
+  async ({ articleId }: { articleId: number }, { getState }) => {
+    const article = findArticle(getState() as RootState, articleId);
     const isThumbedUp = article ? article.is_thumbed_up : false;
-    if (isThumbedUp) {
-      const { error } = await supabase.from('article_thumbs_up').delete().eq('user_id', userId).eq('article_id', articleId);
-      opError = error;
-    } else {
-      const { error } = await supabase.from('article_thumbs_up').insert({ article_id: articleId, user_id: userId });
-      opError = error;
-    }
-    if (opError) throw opError;
 
-    await mirrorToConvex(api.interactions.setThumbsUpFor, { userId, articleId, thumbedUp: !isThumbedUp });
+    await convex.mutation(api.interactions.setThumbsUpFor, { articleId, thumbedUp: !isThumbedUp });
 
     const newThumbsUpCount = article ? (isThumbedUp ? article.thumbs_up_count - 1 : article.thumbs_up_count + 1) : 0;
     return { articleId, isThumbedUp: !isThumbedUp, thumbsUpCount: newThumbsUpCount };
@@ -358,28 +221,19 @@ export const toggleThumbsUp = createAsyncThunk(
 
 export const fetchLikedArticles = createAsyncThunk<
   Article[],
-  { userId: string; discipline?: string | null; subDiscipline?: string | null; offset?: number; searchTerm?: string | null; onlyRecommendations?: boolean },
+  { discipline?: string | null; subDiscipline?: string | null; offset?: number; searchTerm?: string | null; onlyRecommendations?: boolean },
   { state: RootState }
 >(
   'articles/fetchLikedArticles',
-  async ({ userId, discipline = null, subDiscipline = null, offset = 0, searchTerm = null, onlyRecommendations = false }, { getState }) => {
-    const state = getState();
-
-    if (state.auth.isAnonymous) {
-      throw new Error('Anonymous users do not have liked articles');
-    }
-
-    const { data, error } = await supabase.rpc('get_user_liked_articles', {
-      p_user_id: userId,
-      p_discipline_name: discipline,
-      p_sub_discipline_name: subDiscipline,
-      p_search_term: searchTerm,
-      p_only_recommendations: onlyRecommendations,
-      p_offset: offset,
+  async ({ discipline = null, subDiscipline = null, offset = 0, searchTerm = null, onlyRecommendations = false }) => {
+    const res: any = await convex.query(api.articles.getLikedFeed, {
+      disciplineName: discipline ?? undefined,
+      subDisciplineName: subDiscipline ?? undefined,
+      search: searchTerm ?? undefined,
+      onlyRecommandations: onlyRecommendations,
+      offset,
     });
-    if (error) throw error;
-
-    return data || [];
+    return (res?.data ?? []) as Article[];
   }
 );
 

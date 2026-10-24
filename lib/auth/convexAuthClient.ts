@@ -11,10 +11,7 @@
  *   - Les helpers `signInPassword`, `signInGoogle`, `convexSignOut` — wrappers minces
  *     autour du bridge, avec dérivation OAuth via `expo-web-browser` + deep-link.
  *
- * ⚠️ Ce module ne fonctionne QUE quand le flag `AUTH_CONVEX_ENABLED` est `true`.
- * Toute utilisation des helpers exportés doit être gardée derrière ce flag côté appelant.
- *
- * Cf. `med_kit/frontend/docs/AUTH_MIGRATION_CONVEX.md` §5.1.
+ * Seul mécanisme d'auth de l'app (Supabase Auth retiré).
  */
 
 import { ConvexAuthProvider, type TokenStorage } from '@convex-dev/auth/react';
@@ -106,7 +103,7 @@ export const secureStorage: TokenStorage = {
 
 // ─── Bridge impératif ─────────────────────────────────────────────────────────
 //
-// Les thunks Redux (`signIn`, `signOut`, `signInAnonymously`, …) tournent en
+// Les thunks Redux (`signIn`, `signOut`, …) tournent en
 // dehors de l'arbre React et ne peuvent pas invoquer `useAuthActions()`. On
 // expose donc les callbacks du provider via un module-level ref qu'un composant
 // bridge (`ConvexAuthBridge` dans `app/_layout.tsx`) synchronise sur mount.
@@ -115,7 +112,6 @@ export const secureStorage: TokenStorage = {
 //   - `signIn(provider, params)` : proxy direct de `useAuthActions().signIn`
 //   - `signOut()` : idem
 //   - `getToken()` : proxy de `useConvexAuth().fetchAccessToken({ forceRefreshToken: false })`
-//     — utile pour NotificationService qui a besoin du JWT courant.
 //   - `isAuthenticated` : snapshot du state du provider ; utile pour l'hydration
 //     initiale de Redux au boot.
 
@@ -167,12 +163,7 @@ export async function signInPassword(
   password: string,
   opts: { flow: 'signIn' | 'signUp'; name?: string }
 ): Promise<ConvexPasswordFlowResult> {
-  if (!convexAuthBridge.signIn) {
-    throw new Error(
-      'Convex Auth bridge non initialisé. Vérifie que <ConvexAuthProvider> + <ConvexAuthBridge/> sont bien montés.'
-    );
-  }
-  const result = await convexAuthBridge.signIn('password', {
+  const result = await requireBridgeSignIn()('password', {
     email,
     password,
     flow: opts.flow,
@@ -181,16 +172,52 @@ export async function signInPassword(
   return { signingIn: result.signingIn };
 }
 
+function requireBridgeSignIn() {
+  if (!convexAuthBridge.signIn) {
+    throw new Error(
+      'Convex Auth bridge non initialisé. Vérifie que <ConvexAuthProvider> + <ConvexAuthBridge/> sont bien montés.'
+    );
+  }
+  return convexAuthBridge.signIn;
+}
+
+/**
+ * Mot de passe oublié, étape 1 : envoie un code à 8 chiffres par email
+ * (valable 15 min, 3 demandes / heure). Ne révèle pas si l'email existe.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await requireBridgeSignIn()('password', { email, flow: 'reset' });
+}
+
+/**
+ * Mot de passe oublié, étape 2 : vérifie le code et pose le nouveau mot de
+ * passe. Connecte l'utilisateur en cas de succès.
+ */
+export async function confirmPasswordReset(email: string, code: string, newPassword: string): Promise<void> {
+  await requireBridgeSignIn()('password', { email, code, newPassword, flow: 'reset-verification' });
+}
+
 /**
  * Sign-out via bridge. Le provider gère la purge des tokens dans SecureStore
  * et l'invalidation de la session serveur.
  */
 export async function convexSignOut(): Promise<void> {
-  if (!convexAuthBridge.signOut) {
-    // Pas encore de session Convex — no-op safe.
-    return;
+  try {
+    // Révoque la session serveur ; le provider purge aussi ses tokens.
+    if (convexAuthBridge.signOut) await convexAuthBridge.signOut();
+  } finally {
+    // Purge défensive : même si le serveur est injoignable, plus aucun token
+    // ne doit survivre dans le keychain.
+    await clearConvexAuthStorage();
   }
-  await convexAuthBridge.signOut();
+}
+
+/** Supprime les clés Convex Auth (JWT, refresh token, verifier OAuth) du stockage. */
+export async function clearConvexAuthStorage(): Promise<void> {
+  // Même convention de clé que `@convex-dev/auth/react` (namespace = URL du client).
+  const namespace = CONVEX_URL.replace(/[^a-zA-Z0-9]/g, '');
+  const keys = ['__convexAuthJWT', '__convexAuthRefreshToken', '__convexAuthOAuthVerifier'];
+  await Promise.all(keys.map((k) => secureStorage.removeItem(`${k}_${namespace}`)));
 }
 
 /**
@@ -268,118 +295,59 @@ export async function signInGoogle(): Promise<{ signingIn: boolean; cancelled?: 
   return { signingIn: final.signingIn };
 }
 
-// ─── Hydration du profil (JWT → userMirror) ───────────────────────────────────
+// ─── Hydration du profil (session → userMirror) ──────────────────────────────
 //
-// Une fois signé sur Convex Auth, le JWT contient `sub = <_id users>`. Les 200+
-// tables métier indexent sur `userId = supabaseId`. Pour préserver l'interface
-// Redux (`state.auth.user.id === supabaseId`), on résout `supabaseId` via
-// `userMirror.getMirrorByConvexUserId` — voir `docs/AUTH_MIGRATION_CONVEX.md` §1.4.
+// Les tables métier indexent sur `userId = supabaseId` (uuid du profil
+// `userMirror`). Redux garde `state.auth.user.id === supabaseId`.
 
 export interface HydratedConvexUser {
-  /** supabaseId (uuid) — identifiant utilisé partout dans l'app (RLS, tables). */
+  /** supabaseId (uuid du profil userMirror) — identifiant utilisé partout dans l'app. */
   id: string;
   email: string | null;
   name: string;
   is_anonymous: false;
-  /** convexUserId — utile pour les mutations Convex nouvelles. */
-  convexUserId: string;
+  isAdmin: boolean;
 }
 
-/**
- * Décode la payload d'un JWT sans vérifier la signature (safe : le JWT vient
- * d'être émis par notre serveur Convex Auth et stocké dans SecureStore).
- * Retourne `null` si le format est invalide.
- */
-function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
-  try {
-    const parts = jwt.split('.');
-    if (parts.length !== 3) return null;
-    // Base64url → base64 → JSON
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-    // atob est dispo via react-native-url-polyfill/auto (importé au bootstrap).
-    const json = typeof atob === 'function' ? atob(padded) : Buffer.from(padded, 'base64').toString('utf-8');
-    return JSON.parse(json);
-  } catch (err) {
-    console.warn('[convexAuthClient] decodeJwtPayload failed:', (err as Error).message);
-    return null;
-  }
-}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Après un signIn Convex Auth réussi :
- *   1. Récupère le JWT courant (auto-refresh si besoin).
- *   2. Décode `sub` (= convexUserId).
- *   3. Query `authMigration.getMirrorByConvexUserId` pour retrouver le supabaseId
- *      et l'email persistés dans `userMirror`.
- *   4. Retourne un objet compatible avec le shape Redux existant (`{ id, email,
- *      name, is_anonymous: false }`) où `id` = supabaseId (pas convexUserId).
+ * Charge le profil de l'utilisateur authentifié (`userMirror.me`).
  *
- * @throws si aucun userMirror n'est trouvé (edge case : nouveau signup sans
- *   linkNewSignup préalable — l'appelant doit appeler linkNewSignup d'abord).
+ * Juste après un signIn/signUp, le JWT peut ne pas encore être appliqué au
+ * client Convex, et le profil `userMirror` est créé par le callback serveur
+ * `afterUserCreatedOrUpdated` : on réessaie donc pendant `timeoutMs`.
  */
-export async function hydrateConvexUserProfile(): Promise<HydratedConvexUser> {
-  const token = await getConvexAccessToken();
-  if (!token) {
-    throw new Error('hydrateConvexUserProfile: aucun JWT actif (bridge non authentifié).');
+export async function hydrateConvexUserProfile(timeoutMs = 10_000): Promise<HydratedConvexUser> {
+  const deadline = Date.now() + timeoutMs;
+  let mirror: any = null;
+  for (;;) {
+    try {
+      mirror = await convex.query(anyApi.userMirror.me, {});
+    } catch (err) {
+      console.warn('[convexAuthClient] userMirror.me failed:', (err as Error).message);
+    }
+    if (mirror?.supabaseId || Date.now() > deadline) break;
+    await sleep(300);
   }
-  const payload = decodeJwtPayload(token);
-  if (!payload) {
-    throw new Error('hydrateConvexUserProfile: JWT malformé.');
-  }
-  const convexUserId = payload.sub;
-  if (typeof convexUserId !== 'string' || !convexUserId) {
-    throw new Error('hydrateConvexUserProfile: JWT sans champ `sub`.');
-  }
-
-  // Résout supabaseId via userMirror (indexé sur convexUserId).
-  const mirror = await convex.query(anyApi.authMigration.getMirrorByConvexUserId, {
-    convexUserId,
-  });
-  if (!mirror || !mirror.supabaseId) {
-    throw new Error(
-      `hydrateConvexUserProfile: userMirror manquant pour convexUserId=${convexUserId}. Appelle \`linkNewSignup\` d'abord (signup) ou vérifie la migration Phase 3 (login).`
-    );
+  if (!mirror?.supabaseId) {
+    throw new Error('Profil introuvable pour cette session. Reconnectez-vous.');
   }
 
-  const email = (mirror.email as string | undefined) ?? (payload.email as string | undefined) ?? null;
+  const email = (mirror.email as string | undefined) ?? null;
   const displayName =
-    (mirror.displayName as string | undefined) ??
-    [mirror.firstName, mirror.lastName].filter(Boolean).join(' ') ??
-    email ??
+    (mirror.displayName as string | undefined) ||
+    [mirror.firstName, mirror.lastName].filter(Boolean).join(' ') ||
+    email ||
     '';
 
   return {
     id: mirror.supabaseId as string,
     email,
-    name: displayName || '',
+    name: displayName,
     is_anonymous: false,
-    convexUserId,
+    isAdmin: mirror.isAdmin === true,
   };
-}
-
-/**
- * Appelle la mutation publique `authMigration.linkNewSignup` pour lier un nouvel
- * account Convex Auth (créé via signUp) à un userMirror. Utilisé après un signup
- * classique OU après conversion guest → permanent (dans ce cas, `supabaseId` est
- * l'uuid du compte anonyme Supabase — on garde la continuité des interactions
- * indexées sur cet uuid).
- *
- * ⚠️ Requiert que le JWT Convex Auth soit déjà setté sur le client (`convex.setAuth`).
- * Convex Auth le fait automatiquement après `signIn('password', { flow: 'signUp' })`.
- *
- * @param args.supabaseId - uuid Supabase à conserver comme userId legacy
- * @param args.email - email du user
- * @param args.firstName - prénom (optionnel)
- * @param args.lastName - nom (optionnel)
- */
-export async function linkNewSignupToMirror(args: {
-  supabaseId: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-}): Promise<void> {
-  await convex.mutation(anyApi.authMigration.linkNewSignup, args);
 }
 
 // Re-export pour convenance côté `_layout.tsx`.

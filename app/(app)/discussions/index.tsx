@@ -66,7 +66,7 @@ export default function DiscussionsScreen() {
   try {
     rawData = useQuery(
       (api as any).discussions?.list,
-      { userId: loggedIn ? user!.id : undefined } as any
+      {} as any
     );
   } catch (e: any) {
     queryError = e?.message || String(e);
@@ -87,7 +87,6 @@ export default function DiscussionsScreen() {
       try {
         await convex.mutation(api.discussions.voteFor as any, {
           discussionId,
-          userId: user!.id,
           vote: target,
         });
       } catch (e) {
@@ -249,17 +248,10 @@ export default function DiscussionsScreen() {
         onSubmit={async ({ title, content, specialty }) => {
           if (!user) return;
           try {
-            const authorName = [profile?.first_name, profile?.last_name]
-              .filter(Boolean)
-              .join(' ') || 'Anonyme';
             await convex.mutation(api.discussions.createFor as any, {
-              userId: user.id,
               title: title.trim(),
               content: content.trim(),
               specialty: specialty || undefined,
-              authorName,
-              authorStatus: profile?.status || undefined,
-              authorSpecialty: profile?.specialty || undefined,
             });
             setShowNewModal(false);
           } catch (e: any) {

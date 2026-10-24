@@ -24,14 +24,14 @@ export default function RegisterScreen() {
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = email.trim() === "" || emailRegex.test(email);
-  const isPasswordValid = password.trim() === "" || password.length >= 6;
+  const isPasswordValid = password.trim() === "" || password.length >= 8;
   const isFormValid =
     email.trim() !== "" &&
     password.trim() !== "" &&
     firstName.trim() !== "" &&
     lastName.trim() !== "" &&
     emailRegex.test(email) &&
-    password.length >= 6;
+    password.length >= 8;
 
   const handleContinue = () => {
     if (!isFormValid) return;
@@ -184,7 +184,7 @@ export default function RegisterScreen() {
             </View>
             {!isPasswordValid && password.trim() !== "" && (
               <Text style={styles.errorText}>
-                Le mot de passe doit contenir au moins 6 caractères
+                Le mot de passe doit contenir au moins 8 caractères
               </Text>
             )}
           </View>

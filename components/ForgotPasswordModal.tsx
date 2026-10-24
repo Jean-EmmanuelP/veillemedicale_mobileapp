@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Animated, Dimensions, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "../lib/supabase";
+import { requestPasswordReset, confirmPasswordReset } from "../lib/auth/convexAuthClient";
+import { authErrorMessage } from "../store/authSlice";
 import { Easing } from "react-native";
 import { COLORS } from "../assets/design-system/colors";
 
@@ -19,6 +20,10 @@ export default function ForgotPasswordModal({ visible, onClose }: { visible: boo
   const isEmailValid = emailRegex.test(email);
   const [showEmailError, setShowEmailError] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  // Étape 2 : code à 8 chiffres reçu par email + nouveau mot de passe.
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const successAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -47,6 +52,9 @@ export default function ForgotPasswordModal({ visible, onClose }: { visible: boo
         setError(null);
         setMessage(null);
         setShowSuccess(false);
+        setCodeSent(false);
+        setCode("");
+        setNewPassword("");
         successAnim.setValue(0);
         setLoading(false);
       }, 350); // attendre la fin de l'animation de fermeture
@@ -76,20 +84,35 @@ export default function ForgotPasswordModal({ visible, onClose }: { visible: boo
       setLoading(false);
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: "sano://reset-password",
-    });
+    try {
+      await requestPasswordReset(email.trim().toLowerCase());
+      setCodeSent(true);
+    } catch (err) {
+      setError(authErrorMessage(err, "Impossible d'envoyer le code. Réessayez plus tard."));
+    }
     setLoading(false);
-    if (error) {
-      setError("Erreur : " + error.message);
-    } else {
+  };
+
+  const isCodeValid = /^\d{8}$/.test(code.trim());
+  const isNewPasswordValid = newPassword.length >= 8;
+
+  const handleConfirm = async () => {
+    if (!isCodeValid || !isNewPasswordValid) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // Connecte l'utilisateur : la navigation vers l'app est faite par le layout.
+      await confirmPasswordReset(email.trim().toLowerCase(), code.trim(), newPassword);
       setShowSuccess(true);
       Animated.timing(successAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
       }).start();
+    } catch (err) {
+      setError(authErrorMessage(err, "Code invalide ou expiré."));
     }
+    setLoading(false);
   };
 
   if (!shouldRender) return null;
@@ -107,16 +130,63 @@ export default function ForgotPasswordModal({ visible, onClose }: { visible: boo
           <View style={{ width: 70, height: 70, borderRadius: 35, borderWidth: .5, borderColor: COLORS.success, backgroundColor: COLORS.background.secondary, alignItems: "center", justifyContent: "center", marginBottom: 25 }}>
             <Ionicons name="checkmark" size={44} color={COLORS.success} />
           </View>
-          <Text style={{ fontWeight: "bold", color: COLORS.text.primary, fontSize: 18, marginBottom: 10, textAlign: "center" }}>mot de passe oublié</Text>
-          <Text style={{ color: COLORS.text.secondary, fontSize: 15, textAlign: "center", marginBottom: 6, lineHeight: 20 }}>
-            Un email vous a été envoyé à l'adresse
-            {"\n"}
-            <Text>{email}</Text>.
-          </Text>
+          <Text style={{ fontWeight: "bold", color: COLORS.text.primary, fontSize: 18, marginBottom: 10, textAlign: "center" }}>mot de passe modifié</Text>
           <Text style={{ color: COLORS.text.secondary, fontSize: 15, textAlign: "center", lineHeight: 20 }}>
-            Si vous ne recevez pas cet email,{"\n"}consultez vos courriers indésirables.
+            Votre nouveau mot de passe est enregistré.{"\n"}Vous êtes connecté.
           </Text>
         </Animated.View>
+      ) : codeSent ? (
+        <View style={styles.content}>
+          <Text style={styles.title}>vérifiez vos emails</Text>
+          <Text style={styles.desc}>
+            Si un compte existe pour {email}, un code à 8 chiffres vient d'y être envoyé (valable 15 minutes). Pensez à vérifier vos courriers indésirables.
+          </Text>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="code à 8 chiffres"
+              placeholderTextColor={COLORS.text.disabled}
+              value={code}
+              onChangeText={(text) => {
+                setCode(text.replace(/\D/g, "").slice(0, 8));
+                if (error) setError(null);
+              }}
+              keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              autoComplete="one-time-code"
+              maxLength={8}
+            />
+          </View>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="nouveau mot de passe (8 caractères min.)"
+              placeholderTextColor={COLORS.text.disabled}
+              value={newPassword}
+              onChangeText={(text) => {
+                setNewPassword(text);
+                if (error) setError(null);
+              }}
+              secureTextEntry
+              autoCapitalize="none"
+              textContentType="newPassword"
+            />
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              { backgroundColor: COLORS.primary.main, opacity: isCodeValid && isNewPasswordValid ? 1 : 0.45 },
+            ]}
+            onPress={handleConfirm}
+            disabled={!isCodeValid || !isNewPasswordValid || loading}
+          >
+            {loading ? <ActivityIndicator color={COLORS.text.white} /> : <Text style={{ color: COLORS.text.white, fontWeight: "bold" }}>changer le mot de passe</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleSubmit} disabled={loading}>
+            <Text style={{ color: COLORS.text.secondary, textAlign: "center", textDecorationLine: "underline" }}>renvoyer le code</Text>
+          </TouchableOpacity>
+          {error && <Text style={styles.error}>{error}</Text>}
+        </View>
       ) : (
         <View style={styles.content}>
           <Text style={styles.title}>mot de passe oublié</Text>

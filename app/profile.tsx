@@ -15,9 +15,9 @@ import {
   FlatList,
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { setUser, setSession } from '../store/authSlice';
+import { signOut } from '../store/authSlice';
 import { fetchProfile, updateProfile, clearSaveSuccess } from '../store/profileSlice';
-import { supabase } from '../lib/supabase';
+import { convex, api } from '../lib/convex';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../assets/constants/colors';
@@ -25,7 +25,6 @@ import { FONTS, FONT_SIZES } from '../assets/constants/fonts';
 import NotificationService from '../services/NotificationService';
 import { BlurView } from 'expo-blur';
 import { renderGradeStars } from '../utils/gradeStars';
-import LinkGuestAccountSection from '../components/LinkGuestAccountSection';
 import ModernDatePicker from '../components/ModernDatePicker';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -66,15 +65,6 @@ export default function ProfileScreen() {
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
 
-  // Ajouts pour le mode admin secret
-  const [adminClickCount, setAdminClickCount] = useState(0);
-  const [showAdminModal, setShowAdminModal] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminAuthenticated, setAdminAuthenticated] = useState(false);
-  const [notifTitle, setNotifTitle] = useState('Notification admin');
-  const [notifBody, setNotifBody] = useState('Ceci est une notification envoyée à tous les utilisateurs.');
-  const [targetUserId, setTargetUserId] = useState('');
-  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     console.log("--------------------------------")
@@ -182,18 +172,11 @@ export default function ProfileScreen() {
     }
   }, [saveSuccess]);
 
-  // Reset admin click count après un délai pour éviter les clics espacés
-  useEffect(() => {
-    if (adminClickCount === 0) return;
-    const timeout = setTimeout(() => setAdminClickCount(0), 2000);
-    return () => clearTimeout(timeout);
-  }, [adminClickCount]);
-
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
-      // ✅ Suppression des dispatch manuels et de la redirection
-      // car l'onAuthStateChange dans _layout.tsx gère déjà tout automatiquement
+      // signOut : révoque la session Convex Auth + purge les tokens SecureStore.
+      // La redirection vers (auth) est faite par NavigationLayout (user → null).
+      await dispatch(signOut()).unwrap();
     } catch (error) {
       Alert.alert('Erreur', 'Erreur lors de la déconnexion');
     }
@@ -204,40 +187,15 @@ export default function ProfileScreen() {
     
     setDeleteAccountLoading(true);
     try {
-      const response = await fetch('https://etxelhjnqbrgwuitltyk.supabase.co/functions/v1/self-deletion-user', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0eGVsaGpucWJyZ3d1aXRsdHlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA2OTE5NzAsImV4cCI6MjA1NjI2Nzk3MH0.EvaK9bCSYaBVaVOIgakKTAVoM8UrDYg2HX7Z-iyWoD4`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          user_id: user.id
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        Alert.alert(
-          'Compte supprimé',
-          'Votre compte et toutes vos données ont été supprimés avec succès.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                dispatch(setUser(null));
-                dispatch(setSession(null));
-                router.replace('/(auth)');
-              }
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Erreur', `Erreur lors de la suppression: ${data.error || 'Erreur inconnue'}`);
-      }
+      await convex.mutation(api.userMirror.deleteMe, {});
+      await dispatch(signOut());
+      Alert.alert(
+        'Compte supprimé',
+        'Votre compte et toutes vos données ont été supprimés avec succès.'
+      );
     } catch (error) {
       console.error('Delete account error:', error);
-      Alert.alert('Erreur', 'Erreur de connexion lors de la suppression du compte');
+      Alert.alert('Erreur', 'La suppression du compte a échoué. Réessayez plus tard ou contactez-nous.');
     } finally {
       setDeleteAccountLoading(false);
       setShowDeleteAccountModal(false);
@@ -264,7 +222,6 @@ export default function ProfileScreen() {
       });
 
       await dispatch(updateProfile({
-        userId: user.id,
         profile: {
           first_name: firstName,
           last_name: lastName,
@@ -290,82 +247,6 @@ export default function ProfileScreen() {
     } catch (error) {
       Alert.alert('Erreur', 'Erreur lors de la mise à jour du profil');
     }
-  };
-
-  const handleTestNotification = async () => {
-    try {
-      // TODO: Fix this when NotificationService.sendTestNotification is updated to not require parameters
-      // await NotificationService.getInstance().sendTestNotification();
-      Alert.alert('Succès', 'Notification de test envoyée !');
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur lors de l\'envoi de la notification de test');
-    }
-  };
-
-  const handleSendToAll = async () => {
-    // Protection : ne pas envoyer de notifications pour les utilisateurs anonymes
-    if (isAnonymous) {
-      console.log('👤 [PROFILE] handleSendToAll skipped for anonymous user');
-      Alert.alert('Erreur', 'Cette fonction n\'est pas disponible pour les comptes invités.');
-      return;
-    }
-
-    setSending(true);
-    try {
-      console.log('📧 [PROFILE] Fetching all users for admin broadcast...');
-      // Récupérer tous les users
-      const { data: users, error } = await supabase.from('user_profiles').select('id');
-      if (error) throw error;
-      if (!users || users.length === 0) throw new Error('Aucun utilisateur trouvé');
-      let success = 0, fail = 0;
-      for (const u of users) {
-        try {
-          await NotificationService.getInstance().sendNotificationViaEdge(
-            u.id,
-            notifTitle,
-            notifBody,
-            { type: 'admin_broadcast' }
-          );
-          success++;
-        } catch (e) {
-          fail++;
-        }
-      }
-      Alert.alert('Succès', `Notifications envoyées à ${success} utilisateurs. ${fail > 0 ? fail + ' échecs.' : ''}`);
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : 'Erreur lors de l\'envoi';
-      Alert.alert('Erreur', errorMessage);
-    }
-    setSending(false);
-  };
-
-  const handleSendToUser = async () => {
-    // Protection : ne pas envoyer de notifications pour les utilisateurs anonymes
-    if (isAnonymous) {
-      console.log('👤 [PROFILE] handleSendToUser skipped for anonymous user');
-      Alert.alert('Erreur', 'Cette fonction n\'est pas disponible pour les comptes invités.');
-      return;
-    }
-
-    if (!targetUserId) {
-      Alert.alert('Erreur', 'Veuillez saisir un ID utilisateur');
-      return;
-    }
-    setSending(true);
-    try {
-      console.log('📧 [PROFILE] Sending notification to specific user:', targetUserId);
-      await NotificationService.getInstance().sendNotificationViaEdge(
-        targetUserId,
-        notifTitle,
-        notifBody,
-        { type: 'admin_targeted' }
-      );
-      Alert.alert('Succès', 'Notification envoyée à l\'utilisateur');
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : 'Erreur lors de l\'envoi';
-      Alert.alert('Erreur', errorMessage);
-    }
-    setSending(false);
   };
 
   const toggleDisciplineSection = (disciplineId: number) => {
@@ -527,24 +408,6 @@ export default function ProfileScreen() {
     }
   ];
 
-  const handleAdminTitlePress = () => {
-    setAdminClickCount((prev) => {
-      if (prev + 1 >= 10) {
-        setShowAdminModal(true);
-        return 0;
-      }
-      return prev + 1;
-    });
-  };
-
-  const handleAdminPasswordSubmit = () => {
-    if (adminPassword === 'fleur321') {
-      setAdminAuthenticated(true);
-    } else {
-      Alert.alert('Erreur', 'Mot de passe incorrect');
-    }
-  };
-
   const renderStatusModal = () => (
     <Modal
       visible={showStatusModal}
@@ -680,92 +543,6 @@ export default function ProfileScreen() {
     </Modal>
   );
 
-  const renderAdminModal = () => (
-    <Modal
-      visible={showAdminModal}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => {
-        setShowAdminModal(false);
-        setAdminAuthenticated(false);
-        setAdminPassword('');
-      }}
-    >
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ backgroundColor: 'white', borderRadius: 0, padding: 24, width: '85%' }}>
-          {!adminAuthenticated ? (
-            <>
-              <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Accès administrateur</Text>
-              <TextInput
-                placeholder="Mot de passe admin"
-                secureTextEntry
-                value={adminPassword}
-                onChangeText={setAdminPassword}
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 0, padding: 10, marginBottom: 16 }}
-                autoFocus
-                onSubmitEditing={handleAdminPasswordSubmit}
-              />
-              <TouchableOpacity
-                style={{ backgroundColor: '#05403E', padding: 12, borderRadius: 0, alignItems: 'center' }}
-                onPress={handleAdminPasswordSubmit}
-              >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>Valider</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Envoyer une notification admin</Text>
-              <TextInput
-                placeholder="Titre de la notification"
-                value={notifTitle}
-                onChangeText={setNotifTitle}
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 0, padding: 10, marginBottom: 8 }}
-              />
-              <TextInput
-                placeholder="Message de la notification"
-                value={notifBody}
-                onChangeText={setNotifBody}
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 0, padding: 10, marginBottom: 16 }}
-              />
-              <TouchableOpacity
-                style={{ backgroundColor: '#388E3C', padding: 12, borderRadius: 0, alignItems: 'center', marginBottom: 16, opacity: sending ? 0.6 : 1 }}
-                onPress={handleSendToAll}
-                disabled={sending}
-              >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>Envoyer à tous les utilisateurs</Text>
-              </TouchableOpacity>
-              <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>Ou cibler un utilisateur :</Text>
-              <TextInput
-                placeholder="ID utilisateur cible"
-                value={targetUserId}
-                onChangeText={setTargetUserId}
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 0, padding: 10, marginBottom: 8 }}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity
-                style={{ backgroundColor: '#05403E', padding: 12, borderRadius: 0, alignItems: 'center', opacity: sending ? 0.6 : 1 }}
-                onPress={handleSendToUser}
-                disabled={sending}
-              >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>Envoyer à cet utilisateur</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ marginTop: 16, alignItems: 'center' }}
-                onPress={() => {
-                  setShowAdminModal(false);
-                  setAdminAuthenticated(false);
-                  setAdminPassword('');
-                }}
-              >
-                <Text style={{ color: '#D32F2F', fontWeight: 'bold' }}>Fermer</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      </View>
-    </Modal>
-  );
 
   const handleBackPress = () => {
     router.back();
@@ -885,9 +662,9 @@ export default function ProfileScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.iconPrimary} />
           </TouchableOpacity>
           
-          <TouchableOpacity onPress={handleAdminTitlePress} activeOpacity={0.7} style={styles.titleContainer}>
+          <View style={styles.titleContainer}>
             <Text style={styles.headerTitle}>Paramètres</Text>
-          </TouchableOpacity>
+          </View>
           
           <View style={styles.headerSpacer} />
         </View>
@@ -906,9 +683,7 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {isAnonymous ? (
-          <LinkGuestAccountSection />
-        ) : (
+        {(
           <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Vos informations</Text>
@@ -1293,7 +1068,6 @@ export default function ProfileScreen() {
       {renderStatusModal()}
       {renderNotificationModal()}
       {renderDeleteAccountModal()}
-      {renderAdminModal()}
       
       {/* Modern Date Picker */}
       <ModernDatePicker

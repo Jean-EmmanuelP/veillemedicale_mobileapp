@@ -6,5 +6,5 @@
     "typeRoots": ["./node_modules/@types", "./app/types"]
   },
   "include": ["**/*.ts", "**/*.tsx", "**/*.d.ts"],
-  "exclude": ["node_modules", "supabase/functions"]
+  "exclude": ["node_modules"]
 }

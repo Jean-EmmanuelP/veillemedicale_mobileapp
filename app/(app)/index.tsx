@@ -271,7 +271,7 @@ export default function ArticlesScreen() {
       setShowGuestModal(true);
       return;
     }
-    dispatch(toggleLike({ articleId: article.article_id, userId: user.id }));
+    dispatch(toggleLike({ articleId: article.article_id }));
   };
 
   const handleThumbsUpPress = (article: Article) => {
@@ -284,7 +284,7 @@ export default function ArticlesScreen() {
       setShowGuestModal(true);
       return;
     }
-    dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id }));
+    dispatch(toggleThumbsUp({ articleId: article.article_id }));
   };
 
   const handleToggleDownload = async (article: Article) => {

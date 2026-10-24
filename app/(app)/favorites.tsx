@@ -37,7 +37,7 @@ export default function FavoritesScreen() {
   try {
     likedQuery = useQuery(
       (api as any).articles?.getLikedFeed,
-      user?.id && !isAnonymous ? { userId: user.id } : 'skip'
+      user?.id && !isAnonymous ? {} : 'skip'
     );
   } catch { /* silencieux — repli Redux */ }
   const convexLiked = likedQuery?.data as Article[] | undefined;
@@ -62,7 +62,7 @@ export default function FavoritesScreen() {
       // Ne charger les articles que pour les utilisateurs NON-anonymes
       if (user?.id && !isAnonymous) {
         console.log('❤️ [FAVORITES] Loading liked articles for authenticated user...');
-        dispatch(fetchLikedArticles({ userId: user.id }));
+        dispatch(fetchLikedArticles({}));
       } else if (isAnonymous) {
         console.log('👤 [FAVORITES] Anonymous user - skipping liked articles fetch');
       } else {
@@ -113,7 +113,7 @@ export default function FavoritesScreen() {
     setRefreshing(true);
     console.log('🔄 [FAVORITES] Refreshing liked articles...');
     try {
-      await dispatch(fetchLikedArticles({ userId: user.id }));
+      await dispatch(fetchLikedArticles({}));
     } catch (error) {
       console.error('❌ [FAVORITES] Error refreshing liked articles:', error);
     }
@@ -150,7 +150,7 @@ export default function FavoritesScreen() {
     setLikeLoadingIds(ids => [...ids, article.article_id]);
     
     try {
-      const result = await dispatch(toggleLike({ articleId: article.article_id, userId: user.id }));
+      const result = await dispatch(toggleLike({ articleId: article.article_id }));
       
       if (toggleLike.fulfilled.match(result)) {
         console.log('✅ [FAVORITES] Like toggled successfully');
@@ -158,13 +158,13 @@ export default function FavoritesScreen() {
       } else if (toggleLike.rejected.match(result)) {
         console.error('❌ [FAVORITES] Like toggle failed:', result.error);
         // En cas d'erreur, on peut refetch pour rester synchronisé
-        await dispatch(fetchLikedArticles({ userId: user.id }));
+        await dispatch(fetchLikedArticles({}));
       }
     } catch (error) {
       console.error('❌ [FAVORITES] Error in handleLike:', error);
       // En cas d'erreur, on refetch pour rester synchronisé
       try {
-        await dispatch(fetchLikedArticles({ userId: user.id }));
+        await dispatch(fetchLikedArticles({}));
       } catch (fetchError) {
         console.error('❌ [FAVORITES] Error refetching after like error:', fetchError);
       }
@@ -183,7 +183,7 @@ export default function FavoritesScreen() {
     setThumbsUpLoadingIds(ids => [...ids, article.article_id]);
     
     try {
-      const result = await dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id }));
+      const result = await dispatch(toggleThumbsUp({ articleId: article.article_id }));
       
       if (toggleThumbsUp.fulfilled.match(result)) {
         console.log('✅ [FAVORITES] Thumbs up toggled successfully');
@@ -191,13 +191,13 @@ export default function FavoritesScreen() {
       } else if (toggleThumbsUp.rejected.match(result)) {
         console.error('❌ [FAVORITES] Thumbs up toggle failed:', result.error);
         // En cas d'erreur, on peut refetch pour rester synchronisé
-        await dispatch(fetchLikedArticles({ userId: user.id }));
+        await dispatch(fetchLikedArticles({}));
       }
     } catch (error) {
       console.error('❌ [FAVORITES] Error in handleThumbsUp:', error);
       // En cas d'erreur, on refetch pour rester synchronisé
       try {
-        await dispatch(fetchLikedArticles({ userId: user.id }));
+        await dispatch(fetchLikedArticles({}));
       } catch (fetchError) {
         console.error('❌ [FAVORITES] Error refetching after thumbs up error:', fetchError);
       }

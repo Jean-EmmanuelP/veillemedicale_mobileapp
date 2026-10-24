@@ -15,7 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useDispatch } from "react-redux";
-import { signIn, signInAnonymously } from "../../../store/authSlice";
+import { signIn, authErrorMessage } from "../../../store/authSlice";
 import { AppDispatch } from "../../../store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ForgotPasswordModal from "../../../components/ForgotPasswordModal";
@@ -40,19 +40,10 @@ export default function LoginScreen() {
         await AsyncStorage.setItem("lastLoginMethod", "Mail");
         router.replace("/(app)");
       } else {
-        if (resultAction.payload) {
-          Alert.alert(
-            "Erreur de connexion",
-            (resultAction.payload as any).message ||
-              "Email ou mot de passe incorrect."
-          );
-        } else {
-          Alert.alert(
-            "Erreur de connexion",
-            (resultAction.error as any).message ||
-              "Email ou mot de passe incorrect."
-          );
-        }
+        Alert.alert(
+          "Erreur de connexion",
+          authErrorMessage(resultAction.error, "Email ou mot de passe incorrect.")
+        );
       }
     } catch (error: any) {
       Alert.alert(

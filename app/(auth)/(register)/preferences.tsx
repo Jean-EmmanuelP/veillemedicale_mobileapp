@@ -13,7 +13,10 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "../../../lib/supabase";
+import { useDispatch } from "react-redux";
+import { AppDispatch } from "../../../store";
+import { signUp, authErrorMessage } from "../../../store/authSlice";
+import { convex, api } from "../../../lib/convex";
 import NotificationFrequencySelector, {
   NotificationOption,
 } from "../../../components/NotificationFrequencySelector";
@@ -54,6 +57,7 @@ const strings = {
 
 export default function PreferencesScreen() {
   const router = useRouter();
+  const dispatch = useDispatch<AppDispatch>();
   const { email, password, firstName, lastName } = useLocalSearchParams<{
     email: string;
     password: string;
@@ -88,97 +92,32 @@ export default function PreferencesScreen() {
     setError("");
 
     try {
-      // Use firstName and lastName from params, or fallback to email
       const userFirstName = firstName || email.split("@")[0];
       const userLastName = lastName || "";
 
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name: userFirstName,
-            notification_frequency: notificationFrequency,
-            minimum_grade_notification: minimumGrade,
-          },
-        },
-      });
-
-      if (signUpError) {
-        if (
-          signUpError.code === "user_already_exists" ||
-          signUpError.message?.includes("User already registered")
-        ) {
-          setError("Cet email est déjà utilisé.");
-          setLoading(false);
-          return;
-        } else {
-          setError("Erreur lors de l'inscription: " + signUpError.message);
-          setLoading(false);
-          return;
-        }
-      }
-
-      if (!data.user) {
-        setError("Erreur interne lors de la création de l'utilisateur.");
+      // 1. Compte Convex Auth. Le profil userMirror et l'email de bienvenue
+      //    sont créés côté serveur.
+      const result = await dispatch(
+        signUp({ email, password, firstName: userFirstName, lastName: userLastName })
+      );
+      if (!signUp.fulfilled.match(result)) {
+        setError(authErrorMessage(result.error, "Erreur lors de l'inscription. Réessayez."));
         setLoading(false);
         return;
       }
 
-      // Create user profile with preferences
-      const profile = {
-        id: data.user.id,
-        first_name: userFirstName,
-        last_name: userLastName,
-        email: email,
-        disciplines: [],
-        notification_frequency: notificationFrequency,
-        minimum_grade_notification: minimumGrade,
-        date_of_birth: null,
-      };
-
-      const { error: profileError } = await supabase
-        .from("user_profiles")
-        .insert(profile);
-
-      if (profileError) {
-        console.error("Profile creation error:", profileError);
-        setError("Erreur lors de la sauvegarde du profil utilisateur.");
-        setLoading(false);
-        return;
-      }
-
-      // Send welcome email (fire-and-forget)
+      // 2. Préférences (non bloquant : modifiables ensuite dans Paramètres).
       try {
-        const response = await fetch(
-          "https://etxelhjnqbrgwuitltyk.supabase.co/functions/v1/send-welcome-email",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0eGVsaGpucWJyZ3d1aXRsdHlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA2OTE5NzAsImV4cCI6MjA1NjI2Nzk3MH0.EvaK9bCSYaBVaVOIgakKTAVoM8UrDYg2HX7Z-iyWoD4`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              user_id: data.user.id,
-              email: email,
-              first_name: userFirstName,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          console.error(
-            "Welcome email error:",
-            response.status,
-            response.statusText
-          );
-        }
-      } catch (emailError) {
-        console.error("Welcome email error:", emailError);
-        // Don't block the flow for email error
+        await convex.mutation(api.userMirror.updateMyProfile, {
+          firstName: userFirstName,
+          lastName: userLastName,
+          notificationFrequency,
+          minimumGradeNotification: minimumGrade,
+        });
+      } catch (prefError) {
+        console.error("Profile preferences error:", prefError);
       }
 
-      // Success - redirect to app
       router.replace("/(app)");
     } catch (error) {
       setError("Erreur de connexion lors de l'inscription.");

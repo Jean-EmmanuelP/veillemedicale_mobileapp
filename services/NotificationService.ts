@@ -2,7 +2,7 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { convex, api } from '../lib/convex';
 
 // Configuration des notifications
 Notifications.setNotificationHandler({
@@ -100,26 +100,17 @@ class NotificationService {
     }
   }
 
-  // Sauvegarder le token dans Supabase
-  async savePushToken(userId: string, token: string): Promise<void> {
+  // Enregistre le token Expo push côté Convex pour l'utilisateur de la session.
+  // Best-effort : l'envoi de push serveur n'est pas encore branché côté backend,
+  // un échec ne doit pas bloquer l'init (la programmation locale continue).
+  async savePushToken(_userId: string, token: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('user_push_tokens')
-        .upsert({
-          user_profile_id: userId,
-          push_token: token,
-          created_at: new Date().toISOString(),
-        });
-
-      if (error) {
-        console.error('Error saving push token:', error);
-        throw error;
-      }
-
-      console.log('Push token saved successfully');
+      await convex.mutation(api.pushTokens.register, {
+        token,
+        deviceType: Platform.OS,
+      });
     } catch (error) {
-      console.error('Failed to save push token:', error);
-      throw error;
+      console.warn('Push token non enregistré (backend indisponible):', (error as Error).message);
     }
   }
 
@@ -197,59 +188,6 @@ class NotificationService {
     return await Notifications.getAllScheduledNotificationsAsync();
   }
 
-  // Envoie une notification via l'Edge Function Supabase
-  async sendNotificationViaEdge(userId: string, title: string, body: string, data: any = {}) {
-    try {
-      const response = await fetch('https://etxelhjnqbrgwuitltyk.supabase.co/functions/v1/send-push-notification', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${await this.getValidAccessToken()}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          title,
-          body,
-          data,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Edge Function error: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log('Notification sent via Edge Function:', result);
-      return result;
-    } catch (error) {
-      console.error('Error sending notification via Edge Function:', error);
-      throw error;
-    }
-  }
-
-  // Helper pour récupérer le token JWT courant (utilisateur connecté)
-  private async getValidAccessToken(): Promise<string> {
-    // Si tu utilises supabase-js v2 :
-    const session = await supabase.auth.getSession();
-    return session.data.session?.access_token || '';
-  }
-
-  // Envoyer une notification de test
-  async sendTestNotification(userId: string): Promise<void> {
-    try {
-      await this.sendNotificationViaEdge(
-        userId,
-        'Test Veille Medicale',
-        'Ceci est une notification de test pour votre veille scientifique.',
-        { type: 'test' }
-      );
-      console.log('Test notification sent via Edge Function');
-    } catch (error) {
-      console.error('Error sending test notification via Edge Function:', error);
-    }
-  }
-
   // Guard anti-boucle : on ne réinitialise pas pour le même userId
   // (onAuthStateChange se déclenche à chaque refresh de token → sinon boucle)
   private _initializedFor: string | null = null;
@@ -300,24 +238,15 @@ class NotificationService {
     this._consecutiveFailures = 0;
   }
 
-  // Récupérer les préférences de notification de l'utilisateur
+  // Récupérer les préférences de notification de l'utilisateur (profil Convex).
   private async getUserNotificationPreferences(userId: string): Promise<NotificationPreferences | null> {
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('notification_frequency')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching user preferences:', error);
-        return null;
-      }
-
+      const me: any = await convex.query(api.userMirror.me, {});
+      if (!me) return null;
       // Par défaut, programmer à 12:30
       return {
         userId,
-        frequency: data.notification_frequency || 'tous_les_jours',
+        frequency: me.notificationFrequency || 'tous_les_jours',
         time: '12:30',
         enabled: true,
       };
@@ -327,33 +256,15 @@ class NotificationService {
     }
   }
 
-  // Mettre à jour les préférences de notification
+  // Reprogramme les notifications locales. La fréquence est persistée côté
+  // serveur par `userMirror.updateMyProfile` (profileSlice.updateProfile).
   async updateNotificationPreferences(userId: string, frequency: NotificationFrequency, time: string = '12:30'): Promise<void> {
-    try {
-      // Mettre à jour dans Supabase
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({ notification_frequency: frequency })
-        .eq('id', userId);
-
-      if (error) {
-        console.error('Error updating notification preferences:', error);
-        throw error;
-      }
-
-      // Reprogrammer les notifications
-      await this.scheduleNotifications({
-        userId,
-        frequency,
-        time,
-        enabled: true,
-      });
-
-      console.log('Notification preferences updated successfully');
-    } catch (error) {
-      console.error('Failed to update notification preferences:', error);
-      throw error;
-    }
+    await this.scheduleNotifications({
+      userId,
+      frequency,
+      time,
+      enabled: true,
+    });
   }
 
   // Obtenir le token push actuel

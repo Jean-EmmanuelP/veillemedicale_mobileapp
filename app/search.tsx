@@ -53,7 +53,6 @@ export default function SearchScreen() {
       // est déjà inclus dans les lignes renvoyées ; plus besoin de requêtes par résultat.
       const res: any = await convex.query(api.articles.getArticlesFeed, {
         search: query.trim(),
-        userId: user?.id ?? undefined,
         offset: currentOffset,
       });
       const rows: any[] = res?.data ?? [];

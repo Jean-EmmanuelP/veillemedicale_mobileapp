@@ -86,13 +86,12 @@ export default function DMThreadScreen() {
   try {
     convRaw = useQuery(
       (api as any).social?.listConversations,
-      loggedIn ? ({ supabaseId: user!.id } as any) : ('skip' as any)
+      loggedIn ? ({} as any) : ('skip' as any)
     );
     msgRaw = useQuery(
       (api as any).social?.listMessages,
       loggedIn
         ? ({
-            supabaseId: user!.id,
             conversationId: id,
             paginationOpts: { numItems: 100, cursor: null },
           } as any)
@@ -110,7 +109,7 @@ export default function DMThreadScreen() {
   // Mark read au montage & à chaque nouveau message d'un autre.
   useEffect(() => {
     if (!loggedIn) return;
-    convex.mutation(api.social.markRead as any, { supabaseId: user!.id, conversationId: id } as any).catch(() => {});
+    convex.mutation(api.social.markRead as any, { conversationId: id } as any).catch(() => {});
   }, [id, loggedIn, user?.id, messages.length]);
 
   const sendMessage = useCallback(async () => {
@@ -119,7 +118,6 @@ export default function DMThreadScreen() {
     setSending(true);
     try {
       await convex.mutation(api.social.sendDirectMessage as any, {
-        supabaseId: user!.id,
         conversationId: id,
         text,
       } as any);

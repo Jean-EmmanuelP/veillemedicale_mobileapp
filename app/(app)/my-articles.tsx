@@ -204,7 +204,6 @@ export default function MyArticlesScreen() {
       subDiscipline: selectedSubDiscipline === 'all' ? null : selectedSubDiscipline,
       offset: offsetToUse,
       refresh: isRefreshing,
-      userId: user?.id,
       filterByUserSubs: true,
       onlyRecommendations: currentFilter === 'recommandations',
       allowedGrades: customAllowedGrades ?? undefined,
@@ -239,16 +238,16 @@ export default function MyArticlesScreen() {
   const handleOpenLink = async (link: string) => { try { await Linking.openURL(link); } catch (e) { console.error('Error opening link:', e); } };
   const handleLikePress = (article: Article) => { 
     if (!user?.id) return; 
-    dispatch(toggleLike({ articleId: article.article_id, userId: user.id })); 
+    dispatch(toggleLike({ articleId: article.article_id })); 
   };
   const handleReadPress = (article: Article) => { 
     if (!user?.id) return; 
     // La lecture d'articles est autorisée même pour les utilisateurs anonymes (mais ils ne peuvent pas accéder à cette page)
-    dispatch(toggleRead({ articleId: article.article_id, userId: user.id })); 
+    dispatch(toggleRead({ articleId: article.article_id })); 
   };
   const handleThumbsUpPress = (article: Article) => { 
     if (!user?.id) return; 
-    dispatch(toggleThumbsUp({ articleId: article.article_id, userId: user.id })); 
+    dispatch(toggleThumbsUp({ articleId: article.article_id })); 
   };
   const handleToggleDownload = async (article: Article) => {
     setDownloadLoadingIds(ids => [...ids, article.article_id]);

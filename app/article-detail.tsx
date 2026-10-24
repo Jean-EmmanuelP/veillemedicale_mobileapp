@@ -16,9 +16,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { Audio, AVPlaybackStatus } from 'expo-av';
-import { supabase } from '../lib/supabase';
+import { convex, api } from '../lib/convex';
 import { useQuery } from 'convex/react';
-import { api } from '../lib/convex';
 import { Article } from '../types';
 import { FONTS, FONT_SIZES, LINE_HEIGHTS } from '../assets/constants/fonts';
 import { COLORS } from '../assets/constants/colors';
@@ -119,37 +118,23 @@ export default function ArticleDetailScreen() {
     try {
       setLoading(true);
 
-      // Fetch article details from showed_articles
-      const { data, error } = await supabase
-        .from('showed_articles')
-        .select('*')
-        .eq('article_id', articleId)
-        .single();
+      // Détail + état utilisateur (like/lu/pouce) via Convex — l'utilisateur est
+      // celui de la session Convex Auth (anonyme → états à false).
+      const [detail, state]: any[] = await Promise.all([
+        convex.query(api.articles.getArticleDetailFor, { legacyId: articleId }),
+        user?.id
+          ? convex.query(api.interactions.getUserArticleState, { articleId })
+          : Promise.resolve(null),
+      ]);
+      if (!detail?.article) throw new Error('Article introuvable');
 
-      if (error) throw error;
-
-      // Get user-specific data if user is logged in
-      let articleWithUserData = {
-        ...data,
-        is_liked: false,
-        is_read: false,
-        is_thumbed_up: false,
+      const articleWithUserData = {
+        ...detail.article,
+        article_id: detail.article.id,
+        is_liked: !!state?.liked,
+        is_read: !!state?.read,
+        is_thumbed_up: !!state?.thumbedUp,
       };
-
-      if (user?.id) {
-        const [likeCheck, readCheck, thumbsUpCheck] = await Promise.all([
-          supabase.from('article_likes').select('id').eq('article_id', articleId).eq('user_id', user.id).maybeSingle(),
-          supabase.from('article_read').select('read_at').eq('article_id', articleId).eq('user_id', user.id).maybeSingle(),
-          supabase.from('article_thumbs_up').select('thumbed_up_at').eq('article_id', articleId).eq('user_id', user.id).maybeSingle(),
-        ]);
-
-        articleWithUserData = {
-          ...articleWithUserData,
-          is_liked: !!likeCheck.data,
-          is_read: !!readCheck.data,
-          is_thumbed_up: !!thumbsUpCheck.data,
-        };
-      }
 
       setArticle(articleWithUserData as Article);
     } catch (error) {

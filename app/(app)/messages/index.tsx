@@ -55,7 +55,7 @@ export default function MessagesScreen({ hideHeader = false }: { hideHeader?: bo
     raw = useQuery(
       (api as any).social?.listConversations,
       loggedIn && (api as any).social?.listConversations
-        ? ({ supabaseId: user!.id } as any)
+        ? ({} as any)
         : ('skip' as any)
     );
   } catch (e) {

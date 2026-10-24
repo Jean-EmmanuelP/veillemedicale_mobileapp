@@ -77,7 +77,6 @@ export default function UserProfileScreen() {
     setStarting(true);
     try {
       const id = await convex.mutation(api.social.getOrCreateConversation as any, {
-        supabaseId: user!.id,
         otherUserSupabaseId: profile.supabaseId,
       } as any);
       router.push(`/messages/${id}` as any);

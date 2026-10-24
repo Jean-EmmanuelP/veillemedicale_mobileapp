@@ -1,26 +1,16 @@
 /**
- * authSlice — Redux state d'auth mobile, basé sur Convex Auth.
- *
- * Historique : ce slice était bimodal Supabase ↔ Convex derrière `AUTH_CONVEX_ENABLED`.
- * Depuis que le flag est hardcodé `true` (cf. `lib/authConfig.ts`), toutes les
- * branches OFF sont mortes — elles ont été supprimées.
+ * authSlice — Redux state d'auth mobile, basé sur Convex Auth (seul mécanisme).
  *
  * Interface `state.auth.{user, session, isAnonymous, linkingAccount, linkStep}`
- * strictement préservée — les 30+ écrans consommateurs ne sont pas touchés.
- *
- * ⚠️ Usage Supabase restant ici : `supabase.auth.signInAnonymously()` (mode invité —
- * Convex Auth n'a pas de mode anonyme). D'autres écrans/slices utilisent encore
- * Supabase, cf. `docs/SUPABASE_REMOVAL_PLAN.md`. La purge dual (Supabase + Convex) au
- * signOut couvre les sessions résiduelles legacy.
+ * préservée pour les écrans consommateurs. Le mode invité (session anonyme
+ * Supabase) a été retiré : `isAnonymous` vaut toujours `false`.
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { supabase } from '../lib/supabase';
 import {
   signInPassword,
   convexSignOut,
   hydrateConvexUserProfile,
-  linkNewSignupToMirror,
   getConvexAccessToken,
   type HydratedConvexUser,
 } from '../lib/auth/convexAuthClient';
@@ -50,10 +40,8 @@ const initialState: AuthState = {
 // ─── Adaptateur Convex → shape Redux ──────────────────────────────────────────
 
 /**
- * Après un signIn/signUp Convex Auth réussi : hydrate le profil via userMirror
+ * Après un signIn/signUp Convex Auth réussi : charge le profil (`userMirror.me`)
  * et retourne un payload `{ user, session }` compatible avec l'interface Redux.
- * Le `user.id` reste le supabaseId (via userMirror) pour préserver les 200+
- * index tables métier.
  */
 async function buildConvexAuthPayload(): Promise<{ user: HydratedConvexUser; session: { access_token: string | null } }> {
   const hydrated = await hydrateConvexUserProfile();
@@ -64,135 +52,60 @@ async function buildConvexAuthPayload(): Promise<{ user: HydratedConvexUser; ses
   };
 }
 
+/** Message utilisateur pour les erreurs Convex Auth (codes renvoyés par le serveur). */
+export function authErrorMessage(err: unknown, fallback: string): string {
+  const msg = (err as Error)?.message ?? '';
+  if (msg.includes('AccountAlreadyExists')) {
+    return 'Un compte existe déjà avec cet email. Connectez-vous ou réinitialisez votre mot de passe.';
+  }
+  if (msg.includes('InvalidSecret') || msg.includes('InvalidAccountId')) {
+    return 'Email ou mot de passe incorrect.';
+  }
+  if (msg.includes('TooManyFailedAttempts') || msg.includes('rate')) {
+    return 'Trop de tentatives. Réessayez dans quelques minutes.';
+  }
+  if (msg.includes('Invalid password')) {
+    return 'Mot de passe invalide (8 caractères minimum).';
+  }
+  if (msg.toLowerCase().includes('code')) {
+    return 'Code invalide ou expiré.';
+  }
+  return fallback;
+}
+
 // ─── Thunks ───────────────────────────────────────────────────────────────────
 
 export const signIn = createAsyncThunk(
   'auth/signIn',
   async ({ email, password }: { email: string; password: string }) => {
-    await signInPassword(email, password, { flow: 'signIn' });
+    await signInPassword(email.trim().toLowerCase(), password, { flow: 'signIn' });
     return await buildConvexAuthPayload();
   }
 );
 
+/**
+ * Inscription : crée le compte Convex Auth. Le profil `userMirror` (uuid +
+ * email de bienvenue) est créé côté serveur par `afterUserCreatedOrUpdated`.
+ * Les préférences sont ensuite posées via `userMirror.updateMyProfile`.
+ */
 export const signUp = createAsyncThunk(
   'auth/signUp',
-  async (
-    args: { email: string; password: string; firstName?: string; lastName?: string; supabaseId?: string },
-  ) => {
+  async (args: { email: string; password: string; firstName?: string; lastName?: string }) => {
     const { email, password, firstName, lastName } = args;
-    // Étape 1 : crée le compte Convex Auth (users + authAccounts scrypt).
-    await signInPassword(email, password, {
+    await signInPassword(email.trim().toLowerCase(), password, {
       flow: 'signUp',
       name: [firstName, lastName].filter(Boolean).join(' ') || email,
     });
-    // Étape 2 : lie userMirror. Si `supabaseId` fourni (cas guest → permanent),
-    // on garde l'uuid existant. Sinon, on utilise convexUserId comme id legacy.
-    const token = await getConvexAccessToken();
-    let convexUserId = '';
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-        convexUserId = payload.sub as string;
-      } catch (err) {
-        console.warn('[authSlice] signUp: failed to decode JWT', (err as Error).message);
-      }
-    }
-    const idToLink = args.supabaseId || convexUserId;
-    await linkNewSignupToMirror({
-      supabaseId: idToLink,
-      email,
-      firstName,
-      lastName,
-    });
     return await buildConvexAuthPayload();
   }
 );
 
-/**
- * Connexion anonyme — TOUJOURS Supabase (Convex Auth n'a pas d'anon).
- * Usage `supabase.auth.*` restant dans ce slice (voir docs/SUPABASE_REMOVAL_PLAN.md).
- */
-export const signInAnonymously = createAsyncThunk(
-  'auth/signInAnonymously',
-  async () => {
-    const { data, error } = await supabase.auth.signInAnonymously();
-    if (error) throw error;
-    return data;
-  }
-);
-
-/**
- * Étape 1 conversion guest → permanent : lier un email.
- * L'email est juste stocké dans le state ; le signUp Convex se fait à l'étape 2.
- */
-export const linkEmailToAnonymousAccount = createAsyncThunk(
-  'auth/linkEmailToAnonymousAccount',
-  async ({ email }: { email: string }, { getState }) => {
-    const state = getState() as { auth: AuthState };
-    const currentUser = state.auth.user;
-    return {
-      user: { ...currentUser, email, _pendingLinkEmail: email },
-    };
-  }
-);
-
-/**
- * Étape 2 conversion guest → permanent : ajouter un mot de passe.
- * SignUp Convex Auth complet + linkNewSignup avec l'uuid du guest (préservé
- * pour la continuité des données).
- */
-export const addPasswordToVerifiedAccount = createAsyncThunk(
-  'auth/addPasswordToVerifiedAccount',
-  async ({ password }: { password: string }, { getState }) => {
-    const state = getState() as { auth: AuthState };
-    const currentUser = state.auth.user;
-    const email: string | undefined = currentUser?._pendingLinkEmail || currentUser?.email;
-    const guestId: string | undefined = currentUser?.id;
-    if (!email) {
-      throw new Error('addPasswordToVerifiedAccount: email absent. Appelle `linkEmailToAnonymousAccount` d\'abord.');
-    }
-    if (!guestId) {
-      throw new Error('addPasswordToVerifiedAccount: guest id absent.');
-    }
-    // 1. Sign out Supabase (déconnexion du compte anonyme legacy).
-    try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.warn('[authSlice] signOut Supabase guest failed (ignoré):', (err as Error).message);
-    }
-    // 2. SignUp Convex Auth + link userMirror avec le supabaseId guest.
-    await signInPassword(email, password, { flow: 'signUp' });
-    await linkNewSignupToMirror({
-      supabaseId: guestId,
-      email,
-    });
-    return await buildConvexAuthPayload();
-  }
-);
-
-/**
- * Convex Auth ne fait pas de vérification email — le compte est actif dès signup.
- * On retourne l'user courant pour préserver l'interface.
- */
-export const checkEmailVerificationStatus = createAsyncThunk(
-  'auth/checkEmailVerificationStatus',
-  async (_, { getState }) => {
-    const state = getState() as { auth: AuthState };
-    return state.auth.user;
-  }
-);
-
+/** Déconnexion : révoque la session Convex et purge les tokens SecureStore. */
 export const signOut = createAsyncThunk('auth/signOut', async () => {
-  // Best-effort dual purge : Convex Auth + purge Supabase legacy (session anon).
   try {
     await convexSignOut();
   } catch (err) {
     console.warn('[authSlice] convexSignOut failed:', (err as Error).message);
-  }
-  try {
-    await supabase.auth.signOut();
-  } catch (err) {
-    console.warn('[authSlice] supabase.signOut failed (ignoré):', (err as Error).message);
   }
 });
 
@@ -262,72 +175,6 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.error.message || 'Erreur de connexion';
         console.log('❌ [AUTH] signIn.rejected:', action.error.message);
-      })
-      .addCase(signInAnonymously.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-        console.log('⏳ [AUTH] signInAnonymously.pending');
-      })
-      .addCase(signInAnonymously.fulfilled, (state, action) => {
-        state.loading = false;
-        state.user = action.payload.user;
-        state.session = action.payload.session;
-        state.isAnonymous = true;
-        state.linkStep = 'idle';
-        state.linkingAccount = false;
-        state.error = null;
-        console.log('✅ [AUTH] signInAnonymously.fulfilled:', {
-          userId: action.payload.user?.id,
-          isAnonymous: true,
-        });
-      })
-      .addCase(signInAnonymously.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message || 'Erreur de connexion anonyme';
-        console.log('❌ [AUTH] signInAnonymously.rejected:', action.error.message);
-      })
-      .addCase(linkEmailToAnonymousAccount.pending, (state) => {
-        state.linkingAccount = true;
-        state.error = null;
-      })
-      .addCase(linkEmailToAnonymousAccount.fulfilled, (state, action) => {
-        state.linkingAccount = false;
-        state.linkStep = 'email-sent';
-        if ((action.payload as any)?.user) {
-          state.user = (action.payload as any).user;
-        }
-        console.log('✅ [AUTH] linkEmailToAnonymousAccount.fulfilled:', {
-          email: (action.payload as any)?.user?.email,
-          linkStep: state.linkStep,
-        });
-      })
-      .addCase(linkEmailToAnonymousAccount.rejected, (state, action) => {
-        state.linkingAccount = false;
-        state.error = action.error.message || 'Erreur lors de la liaison de l\'email';
-      })
-      .addCase(addPasswordToVerifiedAccount.pending, (state) => {
-        state.linkingAccount = true;
-        state.error = null;
-      })
-      .addCase(addPasswordToVerifiedAccount.fulfilled, (state, action) => {
-        state.linkingAccount = false;
-        state.linkStep = 'password-set';
-        state.isAnonymous = false;
-        state.user = (action.payload as any)?.user ?? state.user;
-        if ((action.payload as any)?.session) {
-          state.session = (action.payload as any).session;
-        }
-        console.log('✅ [AUTH] addPasswordToVerifiedAccount.fulfilled: guest converted');
-      })
-      .addCase(addPasswordToVerifiedAccount.rejected, (state, action) => {
-        state.linkingAccount = false;
-        state.error = action.error.message || 'Erreur lors de l\'ajout du mot de passe';
-      })
-      .addCase(checkEmailVerificationStatus.fulfilled, (state, action) => {
-        if ((action.payload as any)?.email_confirmed_at) {
-          state.linkStep = 'email-verified';
-        }
-        if (action.payload) state.user = action.payload;
       })
       .addCase(signUp.pending, (state) => {
         state.loading = true;

@@ -159,7 +159,6 @@ export default function LiveChatScreen({ hideHeader = false }: { hideHeader?: bo
       await convex.mutation(api.liveChat.sendMessage as any, {
         roomId: selectedRoomId,
         text,
-        supabaseId: user.id,
         replyToId: replyTo?.id,
       } as any);
       setInput('');
@@ -177,7 +176,6 @@ export default function LiveChatScreen({ hideHeader = false }: { hideHeader?: bo
       try {
         await convex.mutation(api.liveChat.deleteMessage as any, {
           messageId: msg.id,
-          supabaseId: user.id,
         } as any);
       } catch (e: any) {
         Alert.alert('Erreur', e?.message || 'Suppression impossible');

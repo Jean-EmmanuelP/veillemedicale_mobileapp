@@ -69,7 +69,7 @@ export default function DiscussionDetailScreen() {
   try {
     rawDetail = useQuery(
       (api as any).discussions?.get,
-      id ? ({ id: id as any, userId: loggedIn ? user!.id : undefined } as any) : ('skip' as any)
+      id ? ({ id: id as any } as any) : ('skip' as any)
     );
   } catch (e: any) {
     queryError = e?.message || String(e);
@@ -86,7 +86,6 @@ export default function DiscussionDetailScreen() {
       try {
         await convex.mutation(api.discussions.voteFor as any, {
           discussionId: discussion.id,
-          userId: user!.id,
           vote: target,
         });
       } catch (e) {
@@ -103,7 +102,6 @@ export default function DiscussionDetailScreen() {
       try {
         await convex.mutation(api.discussions.voteCommentFor as any, {
           commentId,
-          userId: user!.id,
           vote: target,
         });
       } catch (e) {
@@ -117,13 +115,9 @@ export default function DiscussionDetailScreen() {
     if (!loggedIn || !discussion || !newComment.trim() || submitting) return;
     setSubmitting(true);
     try {
-      const authorName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Anonyme';
       await convex.mutation(api.discussions.addCommentFor as any, {
         discussionId: discussion.id,
-        userId: user!.id,
         content: newComment.trim(),
-        authorName,
-        authorStatus: profile?.status || undefined,
       });
       setNewComment('');
     } catch (e: any) {

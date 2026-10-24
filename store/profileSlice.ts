@@ -1,5 +1,4 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { supabase } from '../lib/supabase';
 import { convex, api } from '../lib/convex';
 
 interface UserProfile {
@@ -84,23 +83,19 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 export const fetchProfile = createAsyncThunk(
   'profile/fetchProfile',
+  // `userId` n'est plus envoyé au serveur : le profil est celui de la session Convex Auth.
   async (userId: string) => {
     console.log('📋 [PROFILE SLICE] fetchProfile started for userId:', userId);
 
-    // ─── 1. User profile via Convex `userMirror` (source de vérité mobile) ───
-    // Migration Supabase → Convex : on ne tape plus la table `user_profiles`
-    // Supabase directement. `userMirror` est synchro par webhook + cron
-    // `sync-user-mirror`. Cf. `convex/userMirror.ts`.
+    // ─── 1. Profil de l'utilisateur authentifié (`userMirror.me`) ───────────
     const mirror = await withTimeout(
-      convex.query(api.userMirror.getBySupabaseId, { supabaseId: userId }),
+      convex.query(api.userMirror.me, {}),
       FETCH_TIMEOUT_MS,
-      'convex.userMirror.getBySupabaseId'
+      'convex.userMirror.me'
     );
 
     if (!mirror) {
-      throw new Error(
-        `Profil introuvable dans Convex userMirror pour userId=${userId}. Le sync backend a peut-être du retard — réessayez dans quelques secondes.`
-      );
+      throw new Error('Profil introuvable — session expirée ? Reconnectez-vous.');
     }
 
     // Shape adapté à l'interface UserProfile (snake_case côté mobile pour compat
@@ -125,15 +120,9 @@ export const fetchProfile = createAsyncThunk(
       email: userProfile.email,
     });
 
-    // ─── 2. Disciplines + subscriptions + grades — lecture Convex ───────────
-    // Migration finale 2026-07-03 : les 3 dernières tables Supabase (disciplines,
-    // user_subscriptions, user_grade_preferences) sont maintenant servies par
-    // Convex via `getMobileProfileRelations` (query combinée = 1 seul RTT).
-    //
-    // ⚠️ Les ÉCRITURES (updateProfile ci-dessous) passent encore par Supabase,
-    // cf. docs/SUPABASE_REMOVAL_PLAN.md.
+    // ─── 2. Disciplines + subscriptions + grades (1 seul RTT) ───────────────
     const relations = await withTimeout(
-      convex.query(api.articles.getMobileProfileRelations, { userId }),
+      convex.query(api.articles.getMobileProfileRelations, {}),
       FETCH_TIMEOUT_MS,
       'convex profile relations (disciplines/subs/grades)'
     );
@@ -163,83 +152,34 @@ export const fetchProfile = createAsyncThunk(
 export const updateProfile = createAsyncThunk(
   'profile/updateProfile',
   async ({
-    userId,
     profile,
     subscriptions,
     gradePreferences
   }: {
-    userId: string;
+    userId?: string;
     profile: Partial<UserProfile>;
     subscriptions: { discipline_id: number; sub_discipline_id: number | null; }[];
     gradePreferences: string[];
   }) => {
-    // 1. Update profile
-    // TODO(convex): pas encore de mutation Convex publique équivalente à
-    // `updateProfile` — on garde Supabase update en attendant. Les writes ici
-    // seront répliqués vers Convex par le webhook `upsertFromSupabase`.
+    // Profil + abonnements + grades de l'utilisateur authentifié, en une mutation.
     console.log('📝 [PROFILE SLICE] Updating profile:', profile);
-    // supabase-js query builders sont thenables mais pas Promise natives ; on
-    // les wrappe explicitement pour que withTimeout puisse les racer.
-    const profileUpdateResult = (await withTimeout(
-      Promise.resolve(
-        supabase.from('user_profiles').update(profile).eq('id', userId)
-      ),
+    await withTimeout(
+      convex.mutation(api.userMirror.updateMyProfile, {
+        ...(profile.first_name !== undefined ? { firstName: profile.first_name } : {}),
+        ...(profile.last_name !== undefined ? { lastName: profile.last_name } : {}),
+        ...(profile.status !== undefined ? { status: profile.status || null } : {}),
+        ...(profile.specialty !== undefined ? { specialty: profile.specialty || null } : {}),
+        ...(profile.date_of_birth !== undefined ? { dateOfBirth: profile.date_of_birth || null } : {}),
+        ...(profile.notification_frequency ? { notificationFrequency: profile.notification_frequency } : {}),
+        ...(profile.minimum_grade_notification ? { minimumGradeNotification: profile.minimum_grade_notification } : {}),
+        subscriptions: subscriptions
+          .filter((sub) => sub.discipline_id)
+          .map((sub) => ({ disciplineId: sub.discipline_id, subDisciplineId: sub.sub_discipline_id })),
+        grades: gradePreferences,
+      }),
       FETCH_TIMEOUT_MS,
-      'supabase update user_profiles'
-    )) as { error: any };
-    const profileError = profileUpdateResult.error;
-
-    if (profileError) {
-      console.error('❌ [PROFILE SLICE] Error updating profile:', profileError);
-      throw profileError;
-    }
-
-    // 2. Update grade preferences
-    // First delete existing preferences
-    const { error: deleteGradesError } = await supabase
-      .from('user_grade_preferences')
-      .delete()
-      .eq('user_id', userId);
-
-    if (deleteGradesError) throw deleteGradesError;
-
-    // Then insert new preferences if any
-    if (gradePreferences.length > 0) {
-      const gradesToInsert = gradePreferences.map(grade => ({
-        user_id: userId,
-        grade: grade
-      }));
-
-      const { error: insertGradesError } = await supabase
-        .from('user_grade_preferences')
-        .insert(gradesToInsert);
-
-      if (insertGradesError) throw insertGradesError;
-    }
-
-    // 3. Update subscriptions
-    // First delete existing subscriptions
-    const { error: deleteSubsError } = await supabase
-      .from('user_subscriptions')
-      .delete()
-      .eq('user_id', userId);
-
-    if (deleteSubsError) throw deleteSubsError;
-
-    // Then insert new subscriptions if any
-    if (subscriptions.length > 0) {
-      const subscriptionRecords = subscriptions.map(sub => ({
-        user_id: userId,
-        discipline_id: sub.discipline_id,
-        sub_discipline_id: sub.sub_discipline_id
-      }));
-
-      const { error: insertSubsError } = await supabase
-        .from('user_subscriptions')
-        .insert(subscriptionRecords);
-
-      if (insertSubsError) throw insertSubsError;
-    }
+      'convex.userMirror.updateMyProfile'
+    );
 
     return { profile, subscriptions, gradePreferences };
   }
